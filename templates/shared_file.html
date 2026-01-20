@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{ file.original_name }} - DropVault</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, sans-serif; background: linear-gradient(135deg, #667eea, #764ba2); min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; padding: 20px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-width: 400px; width: 100%; padding: 40px; text-align: center; }
+    .icon { font-size: 4em; margin-bottom: 20px; }
+    h1 { font-size: 1.3em; color: #333; margin-bottom: 10px; word-break: break-word; }
+    .meta { color: #666; margin-bottom: 20px; }
+    .btn { display: inline-block; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; padding: 15px 35px; border-radius: 30px; text-decoration: none; font-weight: 600; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102,126,234,0.4); }
+    .stats { margin-top: 25px; padding-top: 20px; border-top: 1px solid #eee; font-size: 0.85em; color: #888; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📄</div>
+    <h1>{{ file.original_name }}</h1>
+    <div class="meta">{{ file.size|filesizeformat }}</div>
+    <a href="{{ download_url }}" class="btn">⬇️ Download</a>
+    <div class="stats">
+      👁️ {{ link.view_count }} views • ⬇️ {{ link.download_count }}/{{ link.max_downloads }} downloads
+    </div>
+  </div>
+</body>
+</html>

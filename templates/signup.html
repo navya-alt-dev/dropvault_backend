@@ -1,0 +1,20 @@
+<!-- MUST have these exact field names -->
+<form method="POST" action="{% url 'signup' %}">
+    {% csrf_token %}
+    
+    <!-- Show error messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endif %}
+    
+    <input type="text" name="name" placeholder="Full Name">
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+    
+    <button type="submit">Sign Up</button>
+</form>
