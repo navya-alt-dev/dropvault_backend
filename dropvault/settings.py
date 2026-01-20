@@ -29,30 +29,21 @@ IS_RAILWAY = os.environ.get('RAILWAY_ENVIRONMENT') is not None
 IS_RENDER = os.environ.get('RENDER') is not None
 IS_PRODUCTION = IS_RAILWAY or IS_RENDER
 
-print(f"✅ Starting DropVault settings...")
-print(f"IS_RAILWAY: {IS_RAILWAY}")
-print(f"IS_RENDER: {IS_RENDER}")
-
 # ============================================================================
 # SECURITY SETTINGS
 # ============================================================================
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-dev-key-change-this-in-production')
-DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '.onrender.com',
-    'dropvault-2.onrender.com',
     'dropvault-backend.onrender.com',
 ]
 
-print(f"DEBUG: {DEBUG}")
-print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
-
-# Site URL for email links
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com')
 SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com')
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend.onrender.com')
 
 # HTTPS Configuration for deployed environments
 if IS_RAILWAY or IS_RENDER:
@@ -107,7 +98,6 @@ else:
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
 
 if DATABASE_URL:
-    # Production: Use PostgreSQL from DATABASE_URL
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
@@ -115,16 +105,13 @@ if DATABASE_URL:
             conn_health_checks=True,
         )
     }
-    print(f"✅ Using PostgreSQL from DATABASE_URL")
 else:
-    # Development: Use SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db_local.sqlite3',
         }
     }
-    print(f"✅ Using LOCAL SQLite database: {BASE_DIR / 'db_local.sqlite3'}")
 
 # ============================================================================
 # CLOUDINARY CONFIGURATION
@@ -300,12 +287,14 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.onrender\.com$",
 ]
 
+# Add from environment variable
 frontend_url = os.environ.get('FRONTEND_URL', '')
 if frontend_url and frontend_url not in CORS_ALLOWED_ORIGINS:
     CORS_ALLOWED_ORIGINS.append(frontend_url)
 
 CORS_ALLOW_CREDENTIALS = True
 
+# CRITICAL: Allow ALL custom headers including x-session-id
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -316,6 +305,9 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-session-id',
+    'cache-control',
+    'pragma',
 ]
 
 CORS_ALLOW_METHODS = [
@@ -327,10 +319,26 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://dropvault-frontend-ybkd.onrender.com",
+]
+
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
     'X-CSRFToken',
     'Set-Cookie',
+    'Authorization',
 ]
 
 CORS_PREFLIGHT_MAX_AGE = 86400
