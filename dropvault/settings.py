@@ -4,6 +4,7 @@ import os
 import dj_database_url
 import logging
 
+
 logging.basicConfig(level=logging.INFO)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -41,12 +42,17 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
-    'dropvault-2.onrender.com',
     '.onrender.com',
+    'dropvault-2.onrender.com',
+    'dropvault-backend.onrender.com',
 ]
 
 print(f"DEBUG: {DEBUG}")
 print(f"ALLOWED_HOSTS: {ALLOWED_HOSTS}")
+
+# Site URL for email links
+SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend.onrender.com')
 
 # HTTPS Configuration for deployed environments
 if IS_RAILWAY or IS_RENDER:
@@ -272,8 +278,8 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://dropvault-2.onrender.com",
-    "https://dropvault-frontend-1.onrender.com",
+    #"https://dropvault-2.onrender.com",
+    #"https://dropvault-frontend-1.onrender.com",
     "https://dropvault-frontend-ybkd.onrender.com",
     "https://*.onrender.com",
 ]
@@ -288,8 +294,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "https://dropvault-frontend-1.onrender.com",
-    "https://dropvaultnew-frontend.onrender.com",
+    #"https://dropvault-frontend-1.onrender.com",
+    #"https://dropvaultnew-frontend.onrender.com",
+    "https://dropvault-frontend-ybkd.onrender.com",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

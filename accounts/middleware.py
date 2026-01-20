@@ -6,6 +6,8 @@ from django.http import JsonResponse
 from django.urls import resolve
 from django.contrib.auth import get_user_model
 from rest_framework.authtoken.models import Token
+from django.utils.deprecation import MiddlewareMixin
+
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -65,6 +67,21 @@ class EmailVerificationMiddleware:
         messages.warning(request, "Please verify your email to access this page.")
         return redirect('verify_email_prompt')
 
+
+class TokenAuthMiddleware(MiddlewareMixin):
+    """Middleware to authenticate users via Token header"""
+    
+    def process_request(self, request):
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        
+        if auth_header.startswith('Token '):
+            token_key = auth_header.split(' ')[1]
+            try:
+                token = Token.objects.select_related('user').get(key=token_key)
+                request.user = token.user
+                logger.debug(f"Token auth successful for: {token.user.email}")
+            except Token.DoesNotExist:
+                pass
 
 class SessionCleanupMiddleware:
     """Clean up corrupted sessions"""
@@ -294,3 +311,5 @@ class RateLimitMiddleware:
             ip = request.META.get('REMOTE_ADDR', 'unknown')
         
         return f"ip:{ip}"
+
+

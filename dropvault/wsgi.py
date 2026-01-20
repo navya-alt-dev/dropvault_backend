@@ -1,16 +1,16 @@
-"""
-WSGI config for dropvault project.
-
-It exposes the WSGI callable as a module-level variable named ``application``.
-
-For more information on this file, see
-https://docs.djangoproject.com/en/5.2/howto/deployment/wsgi/
-"""
-
+# dropvault/wsgi.py
 import os
+import sys
+
+# Add project to path
+from pathlib import Path
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dropvault.settings')
 
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "dropvault.settings")
-
+print("🚀 WSGI application starting...")
 application = get_wsgi_application()
+print("✅ WSGI application loaded successfully")

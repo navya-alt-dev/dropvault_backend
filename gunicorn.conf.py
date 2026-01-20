@@ -1,28 +1,22 @@
 # gunicorn.conf.py
-import sys
+import os
 
-# Bind to all interfaces
-bind = "0.0.0.0:8000"
+# Bind to PORT provided by Render
+port = os.environ.get('PORT', '10000')
+bind = f"0.0.0.0:{port}"
 
-# Number of workers
+# Workers
 workers = 2
-
-# Logging - IMPORTANT for Docker
-accesslog = "-"  # Log to stdout
-errorlog = "-"   # Log to stderr
-loglevel = "info"
-
-# Capture output from print statements
-capture_output = True
-
-# Enable stdout/stderr forwarding
-enable_stdio_inheritance = True
-
-# Disable output buffering
-pythonunbuffered = True
-
-# Timeout
+worker_class = 'sync'
 timeout = 120
+keepalive = 5
 
-# Print startup message
-print("🚀 Gunicorn starting with logging enabled...", flush=True)
+# Logging
+accesslog = '-'
+errorlog = '-'
+loglevel = 'info'
+
+# Startup
+preload_app = True
+
+print(f"🚀 Gunicorn starting on port {port}")
