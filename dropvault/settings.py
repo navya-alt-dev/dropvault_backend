@@ -274,12 +274,8 @@ CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = False  # Must be False so JS can read it
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
     "http://localhost:3000",
-    "http://localhost:5173",
-    #"https://dropvault-2.onrender.com",
-    #"https://dropvault-frontend-1.onrender.com",
+    "http://127.0.0.1:3000",
     "https://dropvault-frontend-ybkd.onrender.com",
     "https://*.onrender.com",
 ]
@@ -294,14 +290,19 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    #"https://dropvault-frontend-1.onrender.com",
-    #"https://dropvaultnew-frontend.onrender.com",
     "https://dropvault-frontend-ybkd.onrender.com",
+    # "https://dropvault-frontend-1.onrender.com",
+    # "https://dropvaultnew-frontend.onrender.com",
+    
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.onrender\.com$",
 ]
+
+frontend_url = os.environ.get('FRONTEND_URL', '')
+if frontend_url and frontend_url not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(frontend_url)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -315,8 +316,6 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
-    'x-session-id',
-    'cookie',
 ]
 
 CORS_ALLOW_METHODS = [

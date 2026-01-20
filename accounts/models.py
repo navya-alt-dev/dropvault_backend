@@ -15,7 +15,6 @@ class UserProfile(models.Model):
     email_verified = models.BooleanField(default=False)
     verification_token = models.CharField(max_length=255, blank=True, null=True)
     verification_sent_at = models.DateTimeField(blank=True, null=True)
-    verification_token_expiry = models.DateTimeField(blank=True, null=True)
     
     # Signup tracking
     signup_method = models.CharField(max_length=20, default='email')  # 'email' or 'google'
@@ -37,13 +36,14 @@ class UserProfile(models.Model):
             return False
         if not self.verification_token_expiry:
             return False
-        return timezone.now() < self.verification_token_expiry
+        
+        expiry = self.verification_sent_at + timedelta(hours=24)
+        return timezone.now() < expiry
     
     def clear_verification_token(self):
         """Clear the verification token after successful verification"""
         self.verification_token = None
         self.verification_sent_at = None
-        self.verification_token_expiry = None
         self.save()
     
     @property
