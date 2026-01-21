@@ -79,19 +79,23 @@ def authenticate_request(request):
 ALLOWED_EXTENSIONS = {
     # Images
     '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.ico',
-    '.svg', '.eps', '.ai',
+    '.svg', '.eps', '.ai', '.heic', '.heif',
     # Documents
     '.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt',
     # Spreadsheets
-    '.xls', '.xlsx', '.csv',
+    '.xls', '.xlsx', '.csv', '.ods',
     # Presentations
-    '.ppt', '.pptx',
+    '.ppt', '.pptx', '.odp', '.key',
     # Videos
-    '.mp4', '.mov', '.avi', '.webm', '.mkv', '.flv', '.wmv',
+    '.mp4', '.mov', '.avi', '.webm', '.mkv', '.flv', '.wmv', '.m4v', '.3gp',
     # Audio
-    '.mp3', '.wav', '.flac', '.aac', '.ogg',
+    '.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma',
     # Archives
-    '.zip', '.rar', '.7z', '.tar', '.gz',
+    '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2',
+    # Code
+    '.html', '.css', '.js', '.json', '.xml', '.sql',
+    # Other
+    '.epub', '.mobi', '.azw', '.azw3',
 }
 
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB

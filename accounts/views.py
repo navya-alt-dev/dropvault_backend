@@ -74,54 +74,56 @@ def validate_email_complete(email):
 # =============================================================================
 # EMAIL SENDING FUNCTIONS
 # =============================================================================
+
 def send_verification_email(user, verification_link):
-    """Send verification email using Resend API"""
+    """Send verification email using Resend API - FIXED"""
     try:
         resend_api_key = os.environ.get('RESEND_API_KEY', '')
         
+        logger.info("=" * 60)
+        logger.info("📧 SEND_VERIFICATION_EMAIL")
+        logger.info(f"   To: {user.email}")
+        logger.info(f"   Link: {verification_link}")
+        
         if not resend_api_key:
             logger.error("❌ RESEND_API_KEY not configured!")
+            print("❌ RESEND_API_KEY not set!", flush=True)
             return False
+        
+        logger.info(f"   API Key: {resend_api_key[:10]}...")
+        print(f"✅ Resend API Key: {resend_api_key[:10]}...", flush=True)
         
         subject = "Verify your DropVault account"
         
+        # ✅ Simplified HTML (some email clients block complex CSS)
         html_message = f"""
 <!DOCTYPE html>
 <html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-        .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
-        .button {{ display: inline-block; background: #667eea; color: white !important; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }}
-        .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔐 DropVault</h1>
-            <p>Secure File Storage</p>
+<body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
+    <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
+        <h1 style="color: #4f46e5;">🔐 DropVault</h1>
+        <h2>Hi {user.first_name or user.username}!</h2>
+        <p>Welcome to DropVault! Please verify your email address to complete your registration.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="{verification_link}" 
+               style="background-color: #4f46e5; color: white; padding: 15px 30px; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ✓ Verify My Email
+            </a>
         </div>
-        <div class="content">
-            <h2>Hi {user.first_name or user.username}!</h2>
-            <p>Welcome to DropVault! Please verify your email address to complete your registration.</p>
-            
-            <p style="text-align: center;">
-                <a href="{verification_link}" class="button">✓ Verify My Email</a>
-            </p>
-            
-            <p>Or copy and paste this link into your browser:</p>
-            <p style="word-break: break-all; color: #667eea; font-size: 14px;">{verification_link}</p>
-            
-            <p><strong>This link will expire in 24 hours.</strong></p>
-            
-            <p>If you didn't create an account with DropVault, please ignore this email.</p>
-        </div>
-        <div class="footer">
-            <p>© 2024 DropVault. All rights reserved.</p>
-        </div>
+        
+        <p>Or copy and paste this link:</p>
+        <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">
+            {verification_link}
+        </p>
+        
+        <p><strong>This link will expire in 24 hours.</strong></p>
+        
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+        <p style="color: #666; font-size: 12px;">
+            If you didn't create an account with DropVault, please ignore this email.
+        </p>
     </div>
 </body>
 </html>
@@ -139,8 +141,11 @@ This link expires in 24 hours.
 - DropVault Team
 """
         
-        # Send via Resend API
         from_email = os.environ.get('DEFAULT_FROM_EMAIL', 'DropVault <onboarding@resend.dev>')
+        
+        logger.info(f"   From: {from_email}")
+        logger.info(f"   Sending to Resend API...")
+        print(f"📤 Sending email to {user.email}...", flush=True)
         
         response = requests.post(
             'https://api.resend.com/emails',
@@ -158,20 +163,92 @@ This link expires in 24 hours.
             timeout=30
         )
         
+        logger.info(f"   Response: {response.status_code}")
+        print(f"📨 Resend Response: {response.status_code}", flush=True)
+        
         if response.status_code in [200, 201]:
-            logger.info(f"✅ Verification email sent to: {user.email}")
-            logger.info(f"   Resend response: {response.json()}")
+            response_data = response.json()
+            email_id = response_data.get('id', 'N/A')
+            
+            logger.info(f"✅ EMAIL SENT!")
+            logger.info(f"   Email ID: {email_id}")
+            logger.info(f"   Check delivery: https://resend.com/emails/{email_id}")
+            logger.info("=" * 60)
+            
+            print(f"✅ Email sent! ID: {email_id}", flush=True)
+            print(f"🔗 Check delivery: https://resend.com/emails/{email_id}", flush=True)
+            
             return True
         else:
-            logger.error(f"❌ Resend API error: {response.status_code}")
-            logger.error(f"   Response: {response.text}")
+            error_text = response.text
+            logger.error(f"❌ Resend error: {response.status_code}")
+            logger.error(f"   Error: {error_text}")
+            logger.info("=" * 60)
+            
+            print(f"❌ Email failed: {error_text}", flush=True)
             return False
             
     except Exception as e:
-        logger.error(f"❌ Failed to send verification email: {e}")
+        logger.error(f"❌ Email exception: {e}")
+        logger.info("=" * 60)
         import traceback
         traceback.print_exc()
+        print(f"❌ Exception: {str(e)}", flush=True)
         return False
+
+@csrf_exempt
+def api_test_email(request):
+    """Test email sending - UPDATED"""
+    if request.method == "OPTIONS":
+        return JsonResponse({})
+    
+    import os
+    import requests
+    
+    resend_api_key = os.environ.get('RESEND_API_KEY', '')
+    
+    if not resend_api_key:
+        return JsonResponse({
+            'success': False,
+            'error': 'RESEND_API_KEY not configured',
+        })
+    
+    # ✅ FIX: Send to actual user email (from request or parameter)
+    test_email = request.GET.get('email', 'navyashreeam2004@gmail.com')  # ← Use actual email
+    
+    try:
+        response = requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {resend_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'from': 'DropVault <onboarding@resend.dev>',
+                'to': [test_email],  # ✅ Send to real email
+                'subject': 'DropVault Email Test',
+                'html': f'''
+                    <h1>DropVault Email Test</h1>
+                    <p>If you received this email, your Resend configuration is working!</p>
+                    <p>Sent to: {test_email}</p>
+                    <p>Time: {timezone.now().isoformat()}</p>
+                ''',
+            },
+            timeout=10
+        )
+        
+        return JsonResponse({
+            'success': response.status_code in [200, 201],
+            'status_code': response.status_code,
+            'response': response.json() if response.status_code in [200, 201] else response.text,
+            'sent_to': test_email,
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -567,7 +644,7 @@ def api_resend_verification(request):
 
 @csrf_exempt
 def api_login(request):
-    """User login with email verification check"""
+    """User login with email verification check - FIXED to allow Google users"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
@@ -598,12 +675,28 @@ def api_login(request):
         if not user.is_active:
             return JsonResponse({'success': False, 'error': 'Account disabled'}, status=403)
         
+        # ✅ FIX: Check if user has password OR is Google user
         if not user.has_usable_password():
+            try:
+                profile = user.profile
+                if profile.signup_method == 'google':
+                    # ✅ Google user trying to login with password
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'This account was created with Google. Please use "Continue with Google" or set a password in settings.',
+                        'is_google_account': True,
+                        'can_set_password': True,
+                        'action_required': 'USE_GOOGLE_OR_SET_PASSWORD'
+                    }, status=400)
+            except:
+                pass
+            
             return JsonResponse({
                 'success': False, 
                 'error': 'Please use Google login for this account.'
             }, status=400)
         
+        # Check password
         if not check_password(password, user.password):
             logger.warning(f"   ❌ Wrong password: {email}")
             return JsonResponse({'success': False, 'error': 'Invalid email or password'}, status=401)
@@ -667,7 +760,6 @@ def api_login(request):
         import traceback
         traceback.print_exc()
         return JsonResponse({'success': False, 'error': 'Login failed'}, status=500)
-
 
 # =============================================================================
 # API: GOOGLE OAUTH - EMAIL IS VERIFIED BY GOOGLE

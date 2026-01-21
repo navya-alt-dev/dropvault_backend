@@ -359,8 +359,8 @@ if not CLOUDINARY_CONFIGURED:
 # UPLOAD LIMITS
 # ============================================================================
 
-DATA_UPLOAD_MAX_MEMORY_SIZE = 104857600   # 100MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 104857600   # 100MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 524288000   # 500MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 524288000   # 500MB
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
 # ✅ ADD: Request timeout settings
@@ -370,6 +370,18 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 # ✅ ADD: Keep connections alive
 CONN_MAX_AGE = 600  # 10 minutes
 
+FILE_UPLOAD_HANDLERS = [
+    'django.core.files.uploadhandler.TemporaryFileUploadHandler',
+]
+
+# ✅ Temp directory
+FILE_UPLOAD_TEMP_DIR = '/tmp'
+
+# ✅ Streaming
+STREAMING_CHUNK_SIZE = 8192
+
+# ✅ Database connection timeout
+CONN_MAX_AGE = 600
 # ============================================================================
 # SECURITY SETTINGS
 # ============================================================================
