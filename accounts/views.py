@@ -675,7 +675,7 @@ def api_login(request):
 
 @csrf_exempt
 def api_google_login(request):
-    """Google OAuth login"""
+    """Google OAuth login - Google verifies the email"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
@@ -687,14 +687,14 @@ def api_google_login(request):
         code = data.get('code')
         
         if not code:
-            return JsonResponse({'success': False, 'error': 'Code required'}, status=400)
+            return JsonResponse({'success': False, 'error': 'Authorization code required'}, status=400)
         
         client_id = os.environ.get('GOOGLE_CLIENT_ID', '')
         client_secret = os.environ.get('GOOGLE_CLIENT_SECRET', '')
         
         if not client_id or not client_secret:
-            logger.error("Google OAuth not configured!")
-            return JsonResponse({'success': False, 'error': 'Google OAuth not configured'}, status=501)
+            logger.error("❌ Google OAuth not configured - missing GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET")
+            return JsonResponse({'success': False, 'error': 'Google OAuth not configured on server'}, status=501)
         
         # Determine redirect URI based on origin
         origin = request.META.get('HTTP_ORIGIN', '')
@@ -703,10 +703,10 @@ def api_google_login(request):
         else:
             redirect_uri = f"{get_frontend_url()}/google-callback"
         
-        logger.info(f"🔐 Google OAuth with redirect: {redirect_uri}")
+        logger.info(f"🔐 Google OAuth - exchanging code with redirect: {redirect_uri}")
         
         # Exchange code for token
-        resp = requests.post('https://oauth2.googleapis.com/token', data={
+        token_response = requests.post('https://oauth2.googleapis.com/token', data={
             'code': code,
             'client_id': client_id,
             'client_secret': client_secret,
@@ -714,69 +714,88 @@ def api_google_login(request):
             'grant_type': 'authorization_code'
         }, timeout=15)
         
-        if resp.status_code != 200:
-            logger.error(f"Google token error: {resp.text}")
-            return JsonResponse({'success': False, 'error': 'Google auth failed'}, status=401)
+        if token_response.status_code != 200:
+            logger.error(f"❌ Google token exchange failed: {token_response.text}")
+            return JsonResponse({
+                'success': False, 
+                'error': 'Failed to exchange authorization code'
+            }, status=401)
         
-        access_token = resp.json().get('access_token')
+        token_data = token_response.json()
+        access_token = token_data.get('access_token')
+        
         if not access_token:
-            return JsonResponse({'success': False, 'error': 'No access token'}, status=401)
+            logger.error("❌ No access token in Google response")
+            return JsonResponse({'success': False, 'error': 'No access token received'}, status=401)
         
-        # Get user info
-        user_resp = requests.get(
+        # Get user info from Google
+        user_info_response = requests.get(
             'https://www.googleapis.com/oauth2/v2/userinfo',
             headers={'Authorization': f'Bearer {access_token}'},
             timeout=10
         )
         
-        if user_resp.status_code != 200:
-            return JsonResponse({'success': False, 'error': 'Failed to get user info'}, status=401)
+        if user_info_response.status_code != 200:
+            logger.error(f"❌ Failed to get user info from Google: {user_info_response.text}")
+            return JsonResponse({'success': False, 'error': 'Failed to get user info from Google'}, status=401)
         
-        google_data = user_resp.json()
-        email = google_data.get('email')
+        google_data = user_info_response.json()
+        email = google_data.get('email', '').lower().strip()
         name = google_data.get('name', '')
+        first_name = google_data.get('given_name', '')
+        last_name = google_data.get('family_name', '')
         
         if not email:
-            return JsonResponse({'success': False, 'error': 'No email from Google'}, status=400)
+            return JsonResponse({'success': False, 'error': 'No email received from Google'}, status=400)
         
-        logger.info(f"🔐 Google user: {email}")
+        logger.info(f"🔐 Google user info: {email}")
         
         # Find or create user
+        created = False
         try:
             user = User.objects.get(email=email)
-            created = False
+            logger.info(f"   Found existing user: {email}")
         except User.DoesNotExist:
+            # Create new user
             username = email.split('@')[0]
             counter = 1
+            base_username = username
             while User.objects.filter(username=username).exists():
-                username = f"{email.split('@')[0]}{counter}"
+                username = f"{base_username}{counter}"
                 counter += 1
             
-            parts = name.split() if name else [username]
             user = User.objects.create(
                 username=username,
                 email=email,
-                first_name=parts[0] if parts else '',
-                last_name=' '.join(parts[1:]) if len(parts) > 1 else '',
+                first_name=first_name or (name.split()[0] if name else ''),
+                last_name=last_name or (' '.join(name.split()[1:]) if name and len(name.split()) > 1 else ''),
                 is_active=True
             )
+            # Google users don't have passwords - this is correct!
             user.set_unusable_password()
             user.save()
             created = True
+            logger.info(f"   Created new user: {email}")
         
-        # Update profile - Google verifies email
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.email_verified = True
-        profile.signup_method = 'google'
+        # Update/Create profile - Google verifies email automatically
+        profile, profile_created = UserProfile.objects.get_or_create(user=user)
+        profile.email_verified = True  # ✅ Google verified the email
+        profile.signup_method = 'google'  # ✅ Mark as Google user
         profile.save()
         
+        logger.info(f"   Profile updated: email_verified=True, signup_method=google")
+        
+        # Login the user
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+        
+        # Create/get auth token
         token, _ = Token.objects.get_or_create(user=user)
         
-        logger.info(f"✅ Google login: {email} (new={created})")
+        logger.info(f"✅ Google login SUCCESS: {email} (new_user={created})")
         
         return JsonResponse({
             'success': True,
+            'message': 'Google login successful',
             'token': token.key,
             'sessionid': request.session.session_key,
             'user': {
@@ -784,16 +803,22 @@ def api_google_login(request):
                 'email': user.email,
                 'username': user.username,
                 'name': f"{user.first_name} {user.last_name}".strip() or user.username,
-                'has_password': user.has_usable_password(),
+                'has_password': False,  # Google users don't have passwords
                 'email_verified': True,
-            }
+                'is_google_user': True,
+                'signup_method': 'google',
+            },
+            'is_new_user': created
         })
         
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid request data'}, status=400)
     except Exception as e:
         logger.error(f"❌ Google OAuth error: {e}")
         import traceback
         traceback.print_exc()
-        return JsonResponse({'success': False, 'error': 'Google auth failed'}, status=500)
+        return JsonResponse({'success': False, 'error': 'Google authentication failed'}, status=500)
+
 
 # =============================================================================
 # API: LOGOUT
@@ -812,30 +837,42 @@ def api_logout(request):
 
 
 # =============================================================================
-# API: CHECK AUTH
+# API: CHECK AUTH - FIXED TO INCLUDE SIGNUP METHOD
 # =============================================================================
 
 @csrf_exempt
 def api_check_auth(request):
+    """Check if user is authenticated - includes Google user info"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
     user = authenticate_request(request)
     if user:
         try:
-            email_verified = user.profile.email_verified
+            profile = user.profile
+            email_verified = profile.email_verified
+            signup_method = profile.signup_method
         except:
             email_verified = False
+            signup_method = 'email'
+        
+        # ✅ Include signup_method and is_google_user in response
+        is_google_user = signup_method == 'google'
         
         return JsonResponse({
             'authenticated': True,
             'user': {
                 'id': user.id,
                 'email': user.email,
+                'username': user.username,
                 'name': f"{user.first_name} {user.last_name}".strip() or user.username,
                 'email_verified': email_verified,
+                'has_password': user.has_usable_password(),
+                'is_google_user': is_google_user,
+                'signup_method': signup_method,
             }
         })
+    
     return JsonResponse({'authenticated': False})
 
 
