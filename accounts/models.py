@@ -15,6 +15,7 @@ class UserProfile(models.Model):
     email_verified = models.BooleanField(default=False)
     verification_token = models.CharField(max_length=255, blank=True, null=True)
     verification_sent_at = models.DateTimeField(blank=True, null=True)
+    verification_token_expiry = models.DateTimeField(blank=True, null=True)
     
     # Signup tracking
     signup_method = models.CharField(max_length=20, default='email')  # 'email' or 'google'

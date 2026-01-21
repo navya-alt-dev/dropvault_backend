@@ -56,16 +56,19 @@ if IS_RAILWAY or IS_RENDER:
 # ============================================================================
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
 
+# ✅ FIXED: Clean up SITE_URL
+SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com').strip().strip("'\"")
+
 if IS_RENDER and RENDER_EXTERNAL_HOSTNAME:
     SITE_URL = f'https://{RENDER_EXTERNAL_HOSTNAME}'
 elif IS_RAILWAY:
     railway_url = os.environ.get('RAILWAY_STATIC_URL') or os.environ.get('RAILWAY_PUBLIC_DOMAIN')
     if railway_url:
         SITE_URL = railway_url if railway_url.startswith('http') else f'https://{railway_url}'
-    else:
-        SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000')
 else:
-    SITE_URL = os.environ.get('SITE_URL', 'http://localhost:8000')
+    # If not on cloud platform, use from env or default
+    if not SITE_URL.startswith('http'):
+        SITE_URL = f'https://{SITE_URL}'
 
 print(f"✅ SITE_URL: {SITE_URL}")
 
@@ -254,22 +257,17 @@ SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin
 SESSION_COOKIE_SECURE = True      # Required when SameSite=None
 
 # ============================================================================
-# CSRF SETTINGS
-# ============================================================================
-CSRF_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_HTTPONLY = False  # Must be False so JS can read it
-
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://dropvault-frontend-ybkd.onrender.com",
-    "https://*.onrender.com",
-]
-
-# ============================================================================
 # CORS CONFIGURATION
 # ============================================================================
+
+# Get frontend URL and clean it
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com').strip()
+
+# ✅ FIXED: Remove any quotes or extra spaces
+FRONTEND_URL = FRONTEND_URL.strip("'\"")
+
+print(f"✅ FRONTEND_URL: {FRONTEND_URL}")
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -277,20 +275,17 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-1.onrender.com').strip(),
-    # "https://dropvault-frontend-1.onrender.com",
-    # "https://dropvaultnew-frontend.onrender.com",
-    
+    FRONTEND_URL,  # ✅ Use the variable, not os.environ.get() again
 ]
+
+# Remove duplicates and empty strings
+CORS_ALLOWED_ORIGINS = [url for url in CORS_ALLOWED_ORIGINS if url and url.startswith('http')]
+
+print(f"✅ CORS_ALLOWED_ORIGINS: {CORS_ALLOWED_ORIGINS}")
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.onrender\.com$",
 ]
-
-# Add from environment variable
-frontend_url = os.environ.get('FRONTEND_URL', '')
-if frontend_url and frontend_url not in CORS_ALLOWED_ORIGINS:
-    CORS_ALLOWED_ORIGINS.append(frontend_url)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -319,21 +314,6 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://dropvault-frontend-ybkd.onrender.com",
-]
-
 CORS_EXPOSE_HEADERS = [
     'Content-Type',
     'X-CSRFToken',
@@ -342,6 +322,20 @@ CORS_EXPOSE_HEADERS = [
 ]
 
 CORS_PREFLIGHT_MAX_AGE = 86400
+
+# ============================================================================
+# CSRF SETTINGS
+# ============================================================================
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    FRONTEND_URL,
+    "https://*.onrender.com",
+]
+
+CSRF_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = False
 
 # ============================================================================
 # STATIC FILES

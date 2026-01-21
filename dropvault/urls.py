@@ -1,7 +1,6 @@
 # dropvault/urls.py
 from django.contrib import admin
 from django.urls import path, include
-from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
@@ -23,7 +22,6 @@ urlpatterns = [
     
     # Web Pages
     path('', accounts_views.home, name='home'),
-    path('dashboard/', login_required(file_views.dashboard), name='dashboard'),
     
     # ============ AUTH APIs ============
     path('api/signup/', accounts_views.api_signup, name='api_signup'),
@@ -35,9 +33,8 @@ urlpatterns = [
     # ============ EMAIL VERIFICATION APIs ============
     path('api/verify-email/', accounts_views.api_verify_email, name='api_verify_email'),
     path('api/verify-email-token/', accounts_views.api_verify_email_token, name='api_verify_email_token'),
-    path('api/resend-verification/', accounts_views.api_resend_verification, name='api_resend_verification'),  # ✅ ADD
+    path('api/resend-verification/', accounts_views.api_resend_verification, name='api_resend_verification'),
     path('api/test-email/', accounts_views.api_test_email, name='api_test_email'),
-
 
     # ============ PASSWORD APIs ============
     path('api/set-password/', accounts_views.api_set_password, name='api_set_password'),
@@ -85,7 +82,7 @@ urlpatterns = [
     path('api/test-cloudinary/', file_views.test_cloudinary_upload, name='test_cloudinary'),
     path('api/test-cloudinary-pdf/', file_views.test_cloudinary_pdf, name='test_cloudinary_pdf'),
 
-    # Web routes
+    # Web routes (at the end to avoid conflicts)
     path('files/', include('files.urls')),
     path('accounts/', include('accounts.urls')),
     
