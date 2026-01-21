@@ -34,9 +34,11 @@ urlpatterns = [
     
     # ============ EMAIL VERIFICATION APIs ============
     path('api/verify-email/', accounts_views.api_verify_email, name='api_verify_email'),
-    path('api/verify-email-token/', accounts_views.api_verify_email_token, name='api_verify_email_token'),  # ✅ ADD
+    path('api/verify-email-token/', accounts_views.api_verify_email_token, name='api_verify_email_token'),
     path('api/resend-verification/', accounts_views.api_resend_verification, name='api_resend_verification'),  # ✅ ADD
-    
+    path('api/test-email/', accounts_views.api_test_email, name='api_test_email'),
+
+
     # ============ PASSWORD APIs ============
     path('api/set-password/', accounts_views.api_set_password, name='api_set_password'),
     path('api/forgot-password/', accounts_views.api_forgot_password, name='api_forgot_password'),

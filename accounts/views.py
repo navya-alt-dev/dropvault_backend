@@ -1448,3 +1448,54 @@ def disable_mfa(request):
         TOTPDevice.objects.filter(user=request.user).delete()
         return redirect('dashboard')
     return render(request, 'disable_mfa.html')
+
+
+@csrf_exempt
+def api_test_email(request):
+    """Test email sending"""
+    if request.method == "OPTIONS":
+        return JsonResponse({})
+    
+    import os
+    resend_api_key = os.environ.get('RESEND_API_KEY', '')
+    
+    if not resend_api_key:
+        return JsonResponse({
+            'success': False,
+            'error': 'RESEND_API_KEY not configured',
+            'env_vars': {
+                'RESEND_API_KEY': 'NOT SET' if not resend_api_key else 'SET (hidden)',
+                'FRONTEND_URL': os.environ.get('FRONTEND_URL', 'NOT SET'),
+            }
+        })
+    
+    # Try sending a test email
+    try:
+        import requests
+        
+        response = requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {resend_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'from': 'DropVault <onboarding@resend.dev>',
+                'to': ['delivered@resend.dev'],  # Resend test email
+                'subject': 'DropVault Email Test',
+                'html': '<p>This is a test email from DropVault</p>',
+            },
+            timeout=10
+        )
+        
+        return JsonResponse({
+            'success': response.status_code in [200, 201],
+            'status_code': response.status_code,
+            'response': response.json() if response.status_code in [200, 201] else response.text,
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
