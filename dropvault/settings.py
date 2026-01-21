@@ -277,7 +277,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    "https://dropvault-frontend-ybkd.onrender.com",
+    os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-1.onrender.com').strip(),
     # "https://dropvault-frontend-1.onrender.com",
     # "https://dropvaultnew-frontend.onrender.com",
     
