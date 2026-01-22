@@ -2,24 +2,26 @@
 import multiprocessing
 import os
 
-# Bind
+# Bind to Render's port
 bind = f"0.0.0.0:{os.environ.get('PORT', '10000')}"
 
-# ✅ Worker settings
-worker_class = 'sync'  # Use sync for Render free tier
-workers = 2  # Low for free tier
-threads = 4  # Add threading
+# ✅ Use sync workers (no gevent needed)
+worker_class = 'sync'
 
-# ✅ CRITICAL: Timeouts
+# ✅ Workers and threads (optimized for Render free tier)
+workers = 2  # Keep low for 512MB RAM limit
+threads = 4  # Add threading for concurrent requests
+
+# ✅ CRITICAL: Timeouts for large file uploads
 timeout = 600           # 10 minutes
 graceful_timeout = 600
 keepalive = 5
 
-# ✅ Request limits
+# ✅ Request size limits (unlimited for large uploads)
 limit_request_line = 0
 limit_request_field_size = 0
 
-# ✅ Worker temp dir (use RAM disk)
+# ✅ Use RAM disk for temporary files (faster on Render)
 worker_tmp_dir = '/dev/shm'
 
 # Logging
@@ -27,14 +29,21 @@ accesslog = '-'
 errorlog = '-'
 loglevel = 'info'
 
-# ✅ Prevent preload
+# ✅ Don't preload app (better for file uploads)
 preload_app = False
 
-# ✅ Worker recycling
+# ✅ Restart workers after N requests (prevent memory leaks)
 max_requests = 100
 max_requests_jitter = 10
 
-print("🚀 Gunicorn Config Loaded")
+# ✅ Worker connections (for handling concurrent uploads)
+worker_connections = 1000
+
+print("=" * 60)
+print("🚀 Gunicorn Configuration Loaded")
 print(f"   Workers: {workers}")
-print(f"   Timeout: {timeout}s")
+print(f"   Worker Class: {worker_class}")
 print(f"   Threads: {threads}")
+print(f"   Timeout: {timeout}s")
+print(f"   Bind: {bind}")
+print("=" * 60)
