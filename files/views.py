@@ -388,11 +388,14 @@ def upload_file(request):
                     sha256=file_hash,
                     deleted=False,
                     cloudinary_url=cloudinary_url,
-                    cloudinary_public_id=cloudinary_public_id
+                    cloudinary_public_id=cloudinary_public_id,
+                    cloudinary_resource_type=actual_resource_type
                 )
             
             log_info(f"📤 ✅ Database save successful! File ID: {file_obj.id}")
-            
+            log_info(f"📤    Resource Type: {actual_resource_type}")
+
+
         except Exception as db_err:
             log_error(f"📤 ❌ Database error: {db_err}")
             log_error(traceback.format_exc())
@@ -484,48 +487,71 @@ def get_resource_type_from_filename(filename):
 
 @csrf_exempt
 def download_file(request, file_id):
-    """Download user's own file"""
+    """Download user's own file - FIXED for PDFs and raw files"""
     
     if request.method == "OPTIONS":
         return json_response({'status': 'ok'})
     
-    log_info(f"📥 DOWNLOAD - File ID: {file_id}")
+    log_info("=" * 60)
+    log_info(f"📥 DOWNLOAD REQUEST - File ID: {file_id}")
+    log_info("=" * 60)
     
     try:
         user = authenticate_request(request)
         if not user:
+            log_error("📥 Authentication failed")
             return auth_error_response()
+        
+        log_info(f"📥 User: {user.email}")
         
         try:
             file_obj = File.objects.get(id=file_id, user=user, deleted=False)
         except File.DoesNotExist:
+            log_error(f"📥 File not found: {file_id}")
             return JsonResponse({'error': 'File not found'}, status=404)
         
         log_info(f"📥 File: {file_obj.original_name}")
         log_info(f"📥 Stored URL: {file_obj.cloudinary_url}")
         log_info(f"📥 Public ID: {file_obj.cloudinary_public_id}")
         
-        # ✅ Get the stored Cloudinary URL directly
-        download_url = file_obj.cloudinary_url
-        
-        if not download_url:
-            log_error("📥 No cloudinary_url stored")
-            return JsonResponse({'error': 'File not available'}, status=404)
-        
-        # ✅ For PDFs/raw files, try to generate signed URL
+        # ✅ Determine file type
         ext = file_obj.original_name.split('.')[-1].lower() if '.' in file_obj.original_name else ''
-        is_raw_file = ext in ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar']
         
-        if is_raw_file and file_obj.cloudinary_public_id:
-            log_info(f"📥 Raw file detected, generating signed URL...")
+        # ✅ Define file categories
+        image_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'ico', 'svg', 'heic', 'heif']
+        video_exts = ['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv', 'wmv', 'm4v', '3gp']
+        raw_exts = ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 
+                    'zip', 'rar', '7z', 'tar', 'gz', 'csv', 'json', 'xml',
+                    'mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a']
+        
+        # ✅ Determine resource type
+        if ext in image_exts:
+            resource_type = 'image'
+        elif ext in video_exts:
+            resource_type = 'video'
+        else:
+            resource_type = 'raw'
+        
+        log_info(f"📥 Extension: {ext}, Resource Type: {resource_type}")
+        
+        download_url = None
+        
+        # ✅ For raw files (PDF, DOC, etc.), generate signed URL
+        if resource_type == 'raw' and file_obj.cloudinary_public_id:
+            log_info(f"📥 Generating signed URL for raw file...")
             
             try:
                 import cloudinary
                 import cloudinary.utils
+                import time
                 
                 cloud_name = os.environ.get('CLOUDINARY_CLOUD_NAME')
                 api_key = os.environ.get('CLOUDINARY_API_KEY')
                 api_secret = os.environ.get('CLOUDINARY_API_SECRET')
+                
+                if not all([cloud_name, api_key, api_secret]):
+                    log_error("📥 Cloudinary not configured")
+                    return JsonResponse({'error': 'Storage not configured'}, status=500)
                 
                 cloudinary.config(
                     cloud_name=cloud_name,
@@ -534,108 +560,213 @@ def download_file(request, file_id):
                     secure=True
                 )
                 
-                # ✅ Try different resource types
-                for res_type in ['raw', 'image', 'auto']:
+                # ✅ Get stored resource type or determine from extension
+                stored_resource_type = getattr(file_obj, 'cloudinary_resource_type', None) or resource_type
+                
+                # ✅ Try multiple methods to get the file
+                download_methods = [
+                    # Method 1: Signed URL with stored resource type
+                    lambda: cloudinary.utils.cloudinary_url(
+                        file_obj.cloudinary_public_id,
+                        resource_type=stored_resource_type,
+                        type='upload',
+                        secure=True,
+                        sign_url=True,
+                    )[0],
+                    # Method 2: Signed URL with 'raw'
+                    lambda: cloudinary.utils.cloudinary_url(
+                        file_obj.cloudinary_public_id,
+                        resource_type='raw',
+                        type='upload',
+                        secure=True,
+                        sign_url=True,
+                    )[0],
+                    # Method 3: Signed URL with attachment flag
+                    lambda: cloudinary.utils.cloudinary_url(
+                        file_obj.cloudinary_public_id,
+                        resource_type='raw',
+                        type='upload',
+                        secure=True,
+                        sign_url=True,
+                        flags='attachment',
+                    )[0],
+                    # Method 4: Original stored URL
+                    lambda: file_obj.cloudinary_url,
+                ]
+                
+                for i, get_url in enumerate(download_methods):
                     try:
-                        signed_url, _ = cloudinary.utils.cloudinary_url(
-                            file_obj.cloudinary_public_id,
-                            resource_type=res_type,
-                            type='upload',
-                            secure=True,
-                            sign_url=True,
-                            attachment=True  # Forces download
-                        )
+                        url = get_url()
+                        if not url:
+                            continue
+                            
+                        log_info(f"📥 Method {i+1}: Testing URL...")
                         
-                        log_info(f"📥 Trying signed URL ({res_type}): {signed_url}")
+                        # Test if URL is accessible
+                        test_response = http_requests.head(url, timeout=10, allow_redirects=True)
                         
-                        # Test if URL works
-                        import requests as http_requests
-                        test_response = http_requests.head(signed_url, timeout=5)
+                        log_info(f"📥 Method {i+1}: Status {test_response.status_code}")
                         
                         if test_response.status_code == 200:
-                            download_url = signed_url
-                            log_info(f"📥 ✅ Signed URL works with resource_type={res_type}")
+                            download_url = url
+                            log_info(f"📥 ✅ Method {i+1} succeeded!")
                             break
-                        else:
-                            log_info(f"📥 Signed URL returned {test_response.status_code}")
+                        elif test_response.status_code == 301 or test_response.status_code == 302:
+                            # Follow redirect
+                            download_url = test_response.headers.get('Location', url)
+                            log_info(f"📥 ✅ Method {i+1} - Following redirect")
+                            break
                             
-                    except Exception as e:
-                        log_info(f"📥 Signed URL failed for {res_type}: {e}")
+                    except Exception as method_err:
+                        log_info(f"📥 Method {i+1} failed: {method_err}")
                         continue
-                        
+                
+                # ✅ If all methods failed, try direct API fetch
+                if not download_url:
+                    log_info("📥 All URL methods failed, trying direct API fetch...")
+                    
+                    # Build direct URL manually
+                    public_id = file_obj.cloudinary_public_id
+                    direct_url = f"https://res.cloudinary.com/{cloud_name}/raw/upload/{public_id}"
+                    
+                    # Add extension if not in public_id
+                    if ext and not public_id.endswith(f'.{ext}'):
+                        direct_url = f"{direct_url}.{ext}"
+                    
+                    log_info(f"📥 Trying direct URL: {direct_url}")
+                    
+                    test_response = http_requests.head(direct_url, timeout=10)
+                    if test_response.status_code == 200:
+                        download_url = direct_url
+                        log_info(f"📥 ✅ Direct URL works!")
+                    
             except Exception as e:
-                log_error(f"📥 Could not generate signed URL: {e}")
+                log_error(f"📥 Signed URL generation failed: {e}")
+                log_error(traceback.format_exc())
                 # Fall back to stored URL
                 download_url = file_obj.cloudinary_url
         
-        log_info(f"📥 Final URL: {download_url}")
+        # ✅ For images and videos, use stored URL directly (usually works)
+        elif file_obj.cloudinary_url:
+            download_url = file_obj.cloudinary_url
+            log_info(f"📥 Using stored URL for {resource_type}")
         
-        # Fetch and stream
-        if download_url and download_url.startswith('http'):
-            try:
-                import requests as http_requests
-                
-                # Add headers that might help with Cloudinary access
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-                
-                response = http_requests.get(download_url, stream=True, timeout=60, headers=headers)
-                
-                log_info(f"📥 Response Status: {response.status_code}")
-                
-                if response.status_code == 401:
-                    log_error(f"📥 401 Unauthorized - URL may have expired or access denied")
-                    
-                    # ✅ Last resort: try the original stored URL
-                    if download_url != file_obj.cloudinary_url:
-                        log_info(f"📥 Trying original stored URL...")
-                        response = http_requests.get(file_obj.cloudinary_url, stream=True, timeout=60, headers=headers)
-                        log_info(f"📥 Original URL Response: {response.status_code}")
-                
-                if response.status_code != 200:
-                    log_error(f"📥 Failed with status: {response.status_code}")
-                    return JsonResponse({
-                        'error': 'File temporarily unavailable',
-                        'details': f'HTTP {response.status_code}',
-                        'suggestion': 'Please re-upload this file'
-                    }, status=503)
-                
+        # ✅ Final fallback
+        if not download_url:
+            log_error("📥 No valid download URL found")
+            return JsonResponse({
+                'error': 'File temporarily unavailable',
+                'message': 'Please try again or contact support',
+                'file_id': file_id
+            }, status=503)
+        
+        log_info(f"📥 Final Download URL: {download_url[:100]}...")
+        
+        # ✅ Fetch and stream the file
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = http_requests.get(
+                download_url, 
+                stream=True, 
+                timeout=120, 
+                headers=headers,
+                allow_redirects=True
+            )
+            
+            log_info(f"📥 Final Response Status: {response.status_code}")
+            
+            if response.status_code == 200:
+                # Success - stream the file
                 content_type = response.headers.get('Content-Type', 'application/octet-stream')
                 
-                from django.http import HttpResponse
+                # ✅ Fix content type for common files
+                content_type_map = {
+                    'pdf': 'application/pdf',
+                    'doc': 'application/msword',
+                    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'xls': 'application/vnd.ms-excel',
+                    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'ppt': 'application/vnd.ms-powerpoint',
+                    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'txt': 'text/plain',
+                    'csv': 'text/csv',
+                    'json': 'application/json',
+                    'xml': 'application/xml',
+                    'zip': 'application/zip',
+                    'mp3': 'audio/mpeg',
+                    'wav': 'audio/wav',
+                    'mp4': 'video/mp4',
+                }
+                
+                if ext in content_type_map:
+                    content_type = content_type_map[ext]
+                
                 django_response = HttpResponse(
                     response.iter_content(chunk_size=8192),
                     content_type=content_type
                 )
-                django_response['Content-Disposition'] = f'attachment; filename="{file_obj.original_name}"'
+                
+                # ✅ Set proper filename for download
+                safe_filename = file_obj.original_name.replace('"', '\\"')
+                django_response['Content-Disposition'] = f'attachment; filename="{safe_filename}"'
                 
                 if 'Content-Length' in response.headers:
                     django_response['Content-Length'] = response.headers['Content-Length']
                 
-                log_info(f"📥 ✅ Download started: {file_obj.original_name}")
-                
+                # Log the download
                 try:
                     FileLog.objects.create(user=user, file=file_obj, action='DOWNLOAD')
                 except:
                     pass
                 
+                log_info(f"📥 ✅ DOWNLOAD SUCCESS: {file_obj.original_name}")
+                log_info("=" * 60)
+                
                 return django_response
                 
-            except Exception as e:
-                log_error(f"📥 Download error: {e}")
-                log_error(traceback.format_exc())
-                return JsonResponse({'error': str(e)}, status=500)
-        else:
+            elif response.status_code == 401:
+                log_error(f"📥 401 Unauthorized - Cloudinary access denied")
+                
+                # ✅ Try to re-sign the URL
+                return JsonResponse({
+                    'error': 'File access denied',
+                    'message': 'This file needs to be re-uploaded for download access',
+                    'solution': 'Please delete and re-upload this file'
+                }, status=403)
+                
+            else:
+                log_error(f"📥 Failed with status: {response.status_code}")
+                return JsonResponse({
+                    'error': 'File temporarily unavailable',
+                    'status': response.status_code,
+                    'message': 'Please try again in a few minutes'
+                }, status=503)
+                
+        except requests.exceptions.Timeout:
+            log_error("📥 Download timeout")
             return JsonResponse({
-                'error': 'File URL not available',
-                'solution': 'Please re-upload this file'
-            }, status=404)
+                'error': 'Download timeout',
+                'message': 'The file is taking too long to download. Please try again.'
+            }, status=504)
+            
+        except Exception as fetch_error:
+            log_error(f"📥 Fetch error: {fetch_error}")
+            log_error(traceback.format_exc())
+            return JsonResponse({
+                'error': 'Download failed',
+                'message': str(fetch_error)
+            }, status=500)
                     
     except Exception as e:
-        log_error(f"📥 Error: {e}")
+        log_error(f"📥 ❌ DOWNLOAD ERROR: {e}")
         log_error(traceback.format_exc())
-        return JsonResponse({'error': str(e)}, status=500)
+        return JsonResponse({
+            'error': 'Download failed',
+            'message': str(e)
+        }, status=500)
     
 
 @csrf_exempt
