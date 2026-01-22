@@ -1155,6 +1155,7 @@ def api_user_profile(request):
 
 @csrf_exempt
 def api_user_storage(request):
+    """Get user's storage usage details"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
@@ -1164,9 +1165,44 @@ def api_user_storage(request):
     
     try:
         from files.models import File
+        from django.db.models import Sum
+        
+        # Get total storage used
         total = File.objects.filter(user=user, deleted=False).aggregate(total=Sum('size'))['total'] or 0
         count = File.objects.filter(user=user, deleted=False).count()
+        
+        # Storage limit (10GB)
         limit = 10 * 1024 * 1024 * 1024
+        
+        # Get breakdown by file type
+        files = File.objects.filter(user=user, deleted=False)
+        
+        # Calculate breakdown
+        documents_size = 0
+        images_size = 0
+        videos_size = 0
+        audio_size = 0
+        other_size = 0
+        
+        doc_exts = ['.pdf', '.doc', '.docx', '.txt', '.xls', '.xlsx', '.ppt', '.pptx']
+        image_exts = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', '.bmp']
+        video_exts = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.flv', '.wmv']
+        audio_exts = ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a']
+        
+        for f in files:
+            ext = f.original_name.lower().split('.')[-1] if '.' in f.original_name else ''
+            ext_with_dot = f'.{ext}'
+            
+            if ext_with_dot in doc_exts:
+                documents_size += f.size
+            elif ext_with_dot in image_exts:
+                images_size += f.size
+            elif ext_with_dot in video_exts:
+                videos_size += f.size
+            elif ext_with_dot in audio_exts:
+                audio_size += f.size
+            else:
+                other_size += f.size
         
         return JsonResponse({
             'success': True,
@@ -1174,13 +1210,29 @@ def api_user_storage(request):
                 'used': total,
                 'used_formatted': format_file_size(total),
                 'limit': limit,
-                'percentage': round((total / limit) * 100, 2),
+                'limit_formatted': format_file_size(limit),
+                'percentage': round((total / limit) * 100, 2) if limit > 0 else 0,
                 'file_count': count,
+                'remaining': limit - total,
+                'remaining_formatted': format_file_size(limit - total),
+                'breakdown': {
+                    'documents': documents_size,
+                    'documents_formatted': format_file_size(documents_size),
+                    'images': images_size,
+                    'images_formatted': format_file_size(images_size),
+                    'videos': videos_size,
+                    'videos_formatted': format_file_size(videos_size),
+                    'audio': audio_size,
+                    'audio_formatted': format_file_size(audio_size),
+                    'other': other_size,
+                    'other_formatted': format_file_size(other_size),
+                }
             }
         })
     except Exception as e:
+        logger.error(f"Storage API error: {e}")
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
-
+    
 # =============================================================================
 # API: PASSWORD MANAGEMENT
 # =============================================================================
