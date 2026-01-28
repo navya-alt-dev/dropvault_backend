@@ -43,6 +43,8 @@ ALLOWED_HOSTS = [
 ]
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL',"https://dropvault-frontend-ybkd.onrender.com")
+
 SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com')
 
 # HTTPS Configuration for deployed environments
@@ -263,6 +265,8 @@ SESSION_COOKIE_SECURE = True      # Required when SameSite=None
 # Get frontend URL and clean it
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com').strip()
 
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvaultnew-frontend.onrender.com').strip()
+
 # ✅ FIXED: Remove any quotes or extra spaces
 FRONTEND_URL = FRONTEND_URL.strip("'\"")
 
@@ -275,6 +279,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "https://dropvault-frontend-ybkd.onrender.com", # MINE
+    "https://dropvaultnew-frontend.onrender.com",
     FRONTEND_URL,  # ✅ Use the variable, not os.environ.get() again
 ]
 
@@ -329,6 +335,9 @@ CORS_PREFLIGHT_MAX_AGE = 86400
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://dropvaultnew-frontend.onrender.com",
+    "https://dropvault-frontend-ybkd.onrender.com",
+
     FRONTEND_URL,
     "https://*.onrender.com",
 ]
