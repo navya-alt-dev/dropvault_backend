@@ -25,4 +25,6 @@ urlpatterns = [
     # Testing
     path('test-email/', views.test_email, name='test_email'),
     path('upload-test/', views.upload_test, name='upload_test'),
+
+    path('dashboard/', views.dashboard, name='dashboard'),
 ]
