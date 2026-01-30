@@ -598,12 +598,14 @@ def api_signup(request):
         data = json.loads(request.body)
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
+
         name = data.get('name', '').strip()
+        if not name:
+            name = data.get('username', '').strip()
         
         logger.info("=" * 60)
         logger.info(f"📝 SIGNUP REQUEST: {email}")
         
-        # ✅ Get frontend URL from request
         frontend_url = get_frontend_url(request)
         logger.info(f"   Frontend URL: {frontend_url}")
         
@@ -629,9 +631,7 @@ def api_signup(request):
                 if not profile.email_verified:
                     # Resend verification email
                     verification_token = profile.generate_verification_token()
-                    # ✅ Use frontend URL from request
                     verification_link = f"{frontend_url}/verify-email?token={verification_token}"
-
                     email_sent = send_verification_email(existing, verification_link)
 
                     logger.info(f"   📧 Resent verification: {email}")
@@ -678,17 +678,23 @@ def api_signup(request):
             username = f"{base}{counter}"
             counter += 1
         
-        parts = name.split() if name else [username]
-        first = parts[0] if parts else ''
-        last = ' '.join(parts[1:]) if len(parts) > 1 else ''
+        if name:
+            parts = name.split()
+            first_name = parts[0] if parts else ''
+            last_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
+        else:
+            first_name = username
+            last_name = ''
+        
+        logger.info(f"   Creating user: username={username}, first_name={first_name}, last_name={last_name}")
         
         # Create user
         with transaction.atomic():
             user = User(
                 username=username,
                 email=email,
-                first_name=first,
-                last_name=last,
+                first_name=first_name,
+                last_name=last_name,
                 is_active=True
             )
             user.set_password(password)
@@ -703,9 +709,7 @@ def api_signup(request):
             profile.email_verified = False
             profile.save()
         
-        # Send verification email
         verification_token = profile.generate_verification_token()
-        # ✅ Use frontend URL from request
         verification_link = f"{frontend_url}/verify-email?token={verification_token}"
         
         logger.info(f"   🔗 Verification link: {verification_link}")
@@ -1400,16 +1404,67 @@ def api_user_profile(request):
     if not user:
         return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
     
+    full_name = f"{user.first_name} {user.last_name}".strip()
+    
+    if not full_name:
+        full_name = user.username
+    
+    if not full_name:
+        full_name = user.email.split('@')[0] if user.email else 'User'
+    
     return JsonResponse({
         'success': True,
         'data': {
             'id': user.id,
             'email': user.email,
-            'name': f"{user.first_name} {user.last_name}".strip(),
+            'username': user.username,
+            'name': full_name,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
             'has_password': user.has_usable_password(),
         }
     })
 
+@csrf_exempt
+def api_update_user_name(request):
+    """Update user's name"""
+    if request.method == "OPTIONS":
+        return JsonResponse({})
+    
+    if request.method != "POST":
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    user = authenticate_request(request)
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Not authenticated'}, status=401)
+    
+    try:
+        data = json.loads(request.body)
+        name = data.get('name', '').strip()
+        
+        if not name:
+            return JsonResponse({'success': False, 'error': 'Name is required'}, status=400)
+        
+        # Parse name
+        parts = name.split()
+        user.first_name = parts[0] if parts else ''
+        user.last_name = ' '.join(parts[1:]) if len(parts) > 1 else ''
+        user.save()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Name updated successfully',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'name': f"{user.first_name} {user.last_name}".strip(),
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 @csrf_exempt
 def api_user_storage(request):

@@ -58,24 +58,24 @@ class PasswordResetRequiredMiddleware:
             'api_google_login',
             'api_signup',
             'api_login',
-            'api_check_auth',           # ✅ ADDED - This was missing!
+            'api_check_auth',
             'api_set_password',
             'api_verify_email',
             'api_verify_email_token',
             'api_resend_verification',
-            'api_dashboard',            # ✅ ADDED
-            'api_user_profile',         # ✅ ADDED
-            'api_user_storage',         # ✅ ADDED
-            'api_notifications',        # ✅ ADDED
-            'api_list',                 # ✅ ADDED - file list
-            'api_upload',               # ✅ ADDED
-            'api_delete',               # ✅ ADDED
-            'api_trash',                # ✅ ADDED
-            'api_restore',              # ✅ ADDED
-            'api_share',                # ✅ ADDED
-            'api_shared_files',         # ✅ ADDED
-            'api_download',             # ✅ ADDED
-            'api_test_email',           # ✅ ADDED
+            'api_dashboard',
+            'api_user_profile',
+            'api_user_storage',
+            'api_notifications',
+            'api_list',
+            'api_upload',
+            'api_delete',
+            'api_trash',
+            'api_restore',
+            'api_share',
+            'api_shared_files',
+            'api_download',
+            'api_test_email',
             'health_check',
             'shared_file',
             'shared_file_download',
@@ -88,7 +88,7 @@ class PasswordResetRequiredMiddleware:
             '/media/',
             '/s/',
             '/health/',
-            '/api/auth/',               # ✅ ADDED - All auth endpoints
+            '/api/auth/',
             '/api/login/',
             '/api/logout/',
             '/api/signup/',
@@ -99,18 +99,18 @@ class PasswordResetRequiredMiddleware:
             '/api/set-password/',
             '/api/test',
             '/api/debug',
-            '/api/dashboard/',          # ✅ ADDED
-            '/api/user/',               # ✅ ADDED
-            '/api/list/',               # ✅ ADDED
-            '/api/upload/',             # ✅ ADDED
-            '/api/files/',              # ✅ ADDED
-            '/api/notifications/',      # ✅ ADDED
-            '/api/trash/',              # ✅ ADDED
-            '/api/share/',              # ✅ ADDED
-            '/api/shared/',             # ✅ ADDED
-            '/api/download/',           # ✅ ADDED
-            '/api/delete/',             # ✅ ADDED
-            '/api/restore/',            # ✅ ADDED
+            '/api/dashboard/',
+            '/api/user/',
+            '/api/list/',
+            '/api/upload/',
+            '/api/files/',
+            '/api/notifications/',
+            '/api/trash/',
+            '/api/share/',
+            '/api/shared/',
+            '/api/download/',
+            '/api/delete/',
+            '/api/restore/',
         ]
     
     def __call__(self, request):
