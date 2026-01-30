@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 
 from accounts import views as accounts_views
 from files import views as file_views
@@ -13,8 +13,17 @@ from files import sharingviews
 def health_check(request):
     return JsonResponse({'status': 'ok', 'message': 'DropVault is running'})
 
+def favicon(request):
+    svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+        <rect width="100" height="100" rx="20" fill="#4f46e5"/>
+        <text x="50" y="68" font-size="50" text-anchor="middle" fill="white">D</text>
+    </svg>'''
+    return HttpResponse(svg, content_type='image/svg+xml')
 
 urlpatterns = [
+
+    path('favicon.ico', favicon, name='favicon'),
+
     # Health Check
     path('health/', health_check, name='health_check'),
     

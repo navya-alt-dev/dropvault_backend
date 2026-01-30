@@ -1821,12 +1821,124 @@ def api_admin_delete_all_users(request):
 # STUB ENDPOINTS
 # =============================================================================
 
+# ✅ REPLACE WITH THIS:
 @csrf_exempt
 def api_verify_email(request):
+    """Verify email using token - handles both GET and POST"""
     if request.method == "OPTIONS":
         return JsonResponse({})
-    return JsonResponse({'success': True})
-
+    
+    # Get token from multiple sources
+    token = None
+    
+    # Try GET parameter first
+    token = request.GET.get('token', '')
+    
+    # Try POST body if not in GET
+    if not token and request.method == "POST":
+        try:
+            data = json.loads(request.body)
+            token = data.get('token', '')
+        except:
+            pass
+    
+    if not token:
+        return JsonResponse({
+            'success': False, 
+            'error': 'Verification token is required',
+            'message': 'Verification token is required'
+        }, status=400)
+    
+    logger.info(f"🔑 Verifying email token: {token[:20]}...")
+    print(f"🔑 Verifying email token: {token[:20]}...", flush=True)
+    
+    try:
+        profile = UserProfile.objects.get(verification_token=token)
+        user = profile.user
+        
+        print(f"   Found user: {user.email}", flush=True)
+        
+        # Already verified
+        if profile.email_verified:
+            print(f"   Already verified, logging in...", flush=True)
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            auth_token, _ = Token.objects.get_or_create(user=user)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Email already verified!',
+                'token': auth_token.key,
+                'sessionid': request.session.session_key,
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'name': f"{user.first_name} {user.last_name}".strip() or user.username,
+                    'email_verified': True,
+                }
+            })
+        
+        # Check if token is valid (not expired)
+        if profile.is_verification_token_valid(token):
+            profile.email_verified = True
+            profile.clear_verification_token()
+            
+            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            auth_token, _ = Token.objects.get_or_create(user=user)
+            
+            # Create welcome notification
+            try:
+                Notification.create_notification(
+                    user=user,
+                    notification_type='EMAIL_VERIFIED',
+                    title='Welcome to DropVault!',
+                    message='Your email has been verified successfully.'
+                )
+            except Exception as e:
+                print(f"   ⚠️ Notification error (non-critical): {e}", flush=True)
+            
+            logger.info(f"✅ Email verified successfully: {user.email}")
+            print(f"✅ Email verified successfully: {user.email}", flush=True)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Email verified successfully!',
+                'token': auth_token.key,
+                'sessionid': request.session.session_key,
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'username': user.username,
+                    'name': f"{user.first_name} {user.last_name}".strip() or user.username,
+                    'email_verified': True,
+                }
+            })
+        else:
+            print(f"   ❌ Token expired for: {user.email}", flush=True)
+            return JsonResponse({
+                'success': False,
+                'error': 'Verification link has expired. Please request a new one.',
+                'message': 'Verification link has expired. Please request a new one.',
+                'expired': True,
+                'email': user.email
+            }, status=400)
+            
+    except UserProfile.DoesNotExist:
+        print(f"   ❌ No profile found for token: {token[:20]}...", flush=True)
+        return JsonResponse({
+            'success': False, 
+            'error': 'Invalid verification link',
+            'message': 'Invalid verification link'
+        }, status=400)
+    except Exception as e:
+        print(f"   ❌ Verification error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': 'Verification failed',
+            'message': 'Verification failed'
+        }, status=500)
 
 @csrf_exempt
 def api_update_profile(request):
