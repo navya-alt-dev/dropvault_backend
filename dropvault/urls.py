@@ -4,6 +4,7 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from django.http import JsonResponse
+
 from accounts import views as accounts_views
 from files import views as file_views
 from files import sharingviews
@@ -29,9 +30,9 @@ urlpatterns = [
     path('api/logout/', accounts_views.api_logout, name='api_logout'),
     path('api/auth/check/', accounts_views.api_check_auth, name='api_check_auth'),
     path('api/auth/google/', accounts_views.api_google_login, name='api_google_login'),
-    path('api/debug-email-config/', account_views.api_debug_email_config, name='api_debug_email_config'),
-    path('api/verify-email-token/', account_views.api_verify_email_token, name='api_verify_email_token'),
-    path('api/resend-verification/', account_views.api_resend_verification, name='api_resend_verification'),
+    path('api/debug-email-config/', accounts_views.api_debug_email_config, name='api_debug_email_config'),
+    path('api/verify-email-token/', accounts_views.api_verify_email_token, name='api_verify_email_token'),
+    path('api/resend-verification/', accounts_views.api_resend_verification, name='api_resend_verification'),
     
     # ============ EMAIL VERIFICATION APIs ============
     path('api/verify-email/', accounts_views.api_verify_email, name='api_verify_email'),
