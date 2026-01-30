@@ -12,10 +12,11 @@ urlpatterns = [
     path('verify-email/<str:token>/', views.verify_email, name='verify_email'),
     path('verify-prompt/', views.verify_email_prompt, name='verify_email_prompt'),
 
-
-    # Email Verification (API)
+    # Email Debug & Test (API)
     path('api/debug-email-config/', views.api_debug_email_config, name='api_debug_email_config'),
+    path('api/test-email/', views.api_test_email, name='api_test_email'),
     
+    # Email Verification (API)
     path('api/verify-email-token/', views.api_verify_email_token, name='api_verify_email_token'),
     path('api/resend-verification/', views.api_resend_verification, name='api_resend_verification'),
 

@@ -73,30 +73,31 @@ def validate_email_complete(email):
 
 
 # =============================================================================
-# EMAIL SENDING FUNCTIONS - GMAIL SMTP (Works for ALL users)
+# EMAIL SENDING FUNCTIONS - RESEND API (Works on Render!)
 # =============================================================================
 
 def send_verification_email(user, verification_link):
-    """Send verification email using Gmail SMTP - Works for ANY email address"""
+    """Send verification email using Resend API - Works on Render free tier!"""
     try:
-        from django.core.mail import EmailMultiAlternatives
+        import requests as http_requests  # Rename to avoid conflict
         
         logger.info("=" * 60)
-        logger.info("📧 SEND_VERIFICATION_EMAIL (Gmail SMTP)")
+        logger.info("📧 SEND_VERIFICATION_EMAIL (Resend API)")
         logger.info(f"   To: {user.email}")
         logger.info(f"   Link: {verification_link}")
+        print(f"📧 Sending verification email to {user.email}...", flush=True)
         
-        # Get email credentials from environment
-        email_host_user = os.environ.get('EMAIL_HOST_USER', '')
-        email_host_password = os.environ.get('EMAIL_HOST_PASSWORD', '')
+        # Get Resend API key
+        resend_api_key = os.environ.get('RESEND_API_KEY', '')
         
-        if not email_host_user or not email_host_password:
-            logger.error("❌ EMAIL_HOST_USER or EMAIL_HOST_PASSWORD not configured!")
-            logger.error(f"   EMAIL_HOST_USER: {'SET' if email_host_user else 'NOT SET'}")
-            logger.error(f"   EMAIL_HOST_PASSWORD: {'SET' if email_host_password else 'NOT SET'}")
-            return False
+        if not resend_api_key:
+            logger.error("❌ RESEND_API_KEY not configured!")
+            print("❌ RESEND_API_KEY not set in environment!", flush=True)
+            
+            # Fallback: Try Gmail SMTP (won't work on Render free tier)
+            return send_verification_email_smtp(user, verification_link)
         
-        logger.info(f"   From: {email_host_user}")
+        logger.info(f"   Using Resend API: {resend_api_key[:10]}...")
         
         subject = "Verify your DropVault account"
         
@@ -113,27 +114,17 @@ def send_verification_email(user, verification_link):
         <tr>
             <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                    <!-- Header -->
                     <tr>
                         <td style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 30px; text-align: center;">
                             <h1 style="color: white; margin: 0; font-size: 28px;">🔐 DropVault</h1>
                         </td>
                     </tr>
-                    
-                    <!-- Content -->
                     <tr>
                         <td style="padding: 40px 30px;">
                             <h2 style="color: #333; margin: 0 0 20px 0;">Hi {user.first_name or user.username}! 👋</h2>
-                            
                             <p style="color: #666; font-size: 16px; line-height: 1.6;">
-                                Welcome to DropVault! You're just one step away from securing your files in the cloud.
+                                Welcome to DropVault! Please verify your email address by clicking the button below:
                             </p>
-                            
-                            <p style="color: #666; font-size: 16px; line-height: 1.6;">
-                                Please verify your email address by clicking the button below:
-                            </p>
-                            
-                            <!-- Button -->
                             <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                                 <tr>
                                     <td align="center">
@@ -146,29 +137,20 @@ def send_verification_email(user, verification_link):
                                     </td>
                                 </tr>
                             </table>
-                            
-                            <p style="color: #999; font-size: 14px;">
-                                Or copy and paste this link in your browser:
-                            </p>
+                            <p style="color: #999; font-size: 14px;">Or copy and paste this link:</p>
                             <p style="background: #f5f5f5; padding: 15px; border-radius: 5px; 
                                       word-break: break-all; color: #4f46e5; font-size: 14px;">
                                 {verification_link}
                             </p>
-                            
                             <p style="color: #e74c3c; font-size: 14px; margin-top: 20px;">
                                 ⏰ This link will expire in 24 hours.
                             </p>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
                     <tr>
                         <td style="background: #f9f9f9; padding: 20px 30px; border-top: 1px solid #eee;">
                             <p style="color: #999; font-size: 12px; margin: 0; text-align: center;">
-                                If you didn't create an account with DropVault, please ignore this email.
-                            </p>
-                            <p style="color: #999; font-size: 12px; margin: 10px 0 0 0; text-align: center;">
-                                © 2024 DropVault. All rights reserved.
+                                If you didn't create an account, please ignore this email.
                             </p>
                         </td>
                     </tr>
@@ -180,7 +162,6 @@ def send_verification_email(user, verification_link):
 </html>
 """
         
-        # Plain text version
         plain_message = f"""
 Hi {user.first_name or user.username},
 
@@ -192,42 +173,90 @@ Please verify your email address by clicking this link:
 
 This link will expire in 24 hours.
 
-If you didn't create an account with DropVault, please ignore this email.
-
 - The DropVault Team
 """
         
-        # Send email using Django's email system
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=plain_message,
-            from_email=email_host_user,
-            to=[user.email]  # This sends to ANY user's email!
+        # Send via Resend API
+        response = http_requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {resend_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'from': 'DropVault <onboarding@resend.dev>',
+                'to': [user.email],
+                'subject': subject,
+                'html': html_message,
+                'text': plain_message,
+            },
+            timeout=30
         )
-        email.attach_alternative(html_message, "text/html")
-        email.send(fail_silently=False)
         
-        logger.info(f"✅ EMAIL SENT SUCCESSFULLY to {user.email}!")
-        logger.info("=" * 60)
-        return True
+        logger.info(f"   Resend Response: {response.status_code}")
+        print(f"📨 Resend Response: {response.status_code}", flush=True)
         
+        if response.status_code in [200, 201]:
+            response_data = response.json()
+            email_id = response_data.get('id', 'N/A')
+            logger.info(f"✅ EMAIL SENT! ID: {email_id}")
+            print(f"✅ Email sent successfully! ID: {email_id}", flush=True)
+            logger.info("=" * 60)
+            return True
+        else:
+            error_text = response.text
+            logger.error(f"❌ Resend error: {response.status_code} - {error_text}")
+            print(f"❌ Resend error: {error_text}", flush=True)
+            logger.info("=" * 60)
+            return False
+            
     except Exception as e:
         logger.error(f"❌ Email sending failed: {e}")
+        print(f"❌ Email error: {e}", flush=True)
         import traceback
         traceback.print_exc()
         logger.info("=" * 60)
         return False
 
 
-def send_password_reset_email(user, reset_link):
-    """Send password reset email using Gmail SMTP"""
+def send_verification_email_smtp(user, verification_link):
+    """Fallback: Send via SMTP (won't work on Render free tier)"""
     try:
         from django.core.mail import EmailMultiAlternatives
         
         email_host_user = os.environ.get('EMAIL_HOST_USER', '')
+        email_host_password = os.environ.get('EMAIL_HOST_PASSWORD', '')
         
-        if not email_host_user:
-            logger.error("❌ EMAIL_HOST_USER not configured!")
+        if not email_host_user or not email_host_password:
+            logger.error("❌ SMTP credentials not configured")
+            return False
+        
+        subject = "Verify your DropVault account"
+        plain_message = f"Verify your email: {verification_link}"
+        
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_message,
+            from_email=email_host_user,
+            to=[user.email]
+        )
+        email.send(fail_silently=False)
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ SMTP failed: {e}")
+        return False
+
+
+def send_password_reset_email(user, reset_link):
+    """Send password reset email using Resend API"""
+    try:
+        import requests as http_requests
+        
+        resend_api_key = os.environ.get('RESEND_API_KEY', '')
+        
+        if not resend_api_key:
+            logger.error("❌ RESEND_API_KEY not configured!")
             return False
         
         subject = "Reset your DropVault password"
@@ -240,8 +269,7 @@ def send_password_reset_email(user, reset_link):
         <h1 style="color: #4f46e5;">🔐 DropVault</h1>
         <h2>Password Reset Request</h2>
         <p>Hi {user.first_name or user.username},</p>
-        <p>We received a request to reset your password. Click the button below to create a new password:</p>
-        
+        <p>Click the button below to reset your password:</p>
         <div style="text-align: center; margin: 30px 0;">
             <a href="{reset_link}" 
                style="background-color: #4f46e5; color: white; padding: 15px 30px; 
@@ -249,59 +277,53 @@ def send_password_reset_email(user, reset_link):
                 Reset Password
             </a>
         </div>
-        
         <p style="color: #999; font-size: 14px;">This link expires in 1 hour.</p>
-        <p style="color: #999; font-size: 14px;">If you didn't request this, ignore this email.</p>
     </div>
 </body>
 </html>
 """
         
-        plain_message = f"""
-Hi {user.first_name or user.username},
-
-We received a request to reset your password.
-
-Click here to reset: {reset_link}
-
-This link expires in 1 hour.
-
-If you didn't request this, ignore this email.
-
-- DropVault Team
-"""
+        plain_message = f"Reset your password: {reset_link}"
         
-        email = EmailMultiAlternatives(
-            subject=subject,
-            body=plain_message,
-            from_email=email_host_user,
-            to=[user.email]
+        response = http_requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {resend_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'from': 'DropVault <onboarding@resend.dev>',
+                'to': [user.email],
+                'subject': subject,
+                'html': html_message,
+                'text': plain_message,
+            },
+            timeout=30
         )
-        email.attach_alternative(html_message, "text/html")
-        email.send(fail_silently=False)
         
-        logger.info(f"✅ Password reset email sent to {user.email}")
-        return True
-        
+        if response.status_code in [200, 201]:
+            logger.info(f"✅ Password reset email sent to {user.email}")
+            return True
+        else:
+            logger.error(f"❌ Resend error: {response.text}")
+            return False
+            
     except Exception as e:
         logger.error(f"❌ Password reset email failed: {e}")
         return False
 
 
 # =============================================================================
-# API: TEST EMAIL - ONLY ONE FUNCTION! (Gmail SMTP)
+# API: TEST EMAIL - Using Resend API
 # =============================================================================
 
 @csrf_exempt
 def api_test_email(request):
-    """Test email sending with detailed error reporting"""
+    """Test email sending with Resend API"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
-    import os
-    import smtplib
-    from email.mime.text import MIMEText
-    from django.core.mail import send_mail
+    import requests as http_requests
     
     test_email = request.GET.get('email', '')
     
@@ -311,75 +333,70 @@ def api_test_email(request):
             'error': 'Please provide email: /api/test-email/?email=your@email.com'
         })
     
-    # Get config
-    email_host = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-    email_port = int(os.environ.get('EMAIL_PORT', 587))
-    email_user = os.environ.get('EMAIL_HOST_USER', '')
-    email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
-    email_tls = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    # Get Resend API key
+    resend_api_key = os.environ.get('RESEND_API_KEY', '')
     
-    # Check configuration
+    # Also show SMTP config for debugging
     config_status = {
-        'EMAIL_HOST': email_host or 'NOT SET',
-        'EMAIL_PORT': email_port,
-        'EMAIL_USE_TLS': email_tls,
-        'EMAIL_HOST_USER': email_user[:10] + '***' if email_user else 'NOT SET',
-        'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
+        'RESEND_API_KEY': 'SET' if resend_api_key else 'NOT SET',
+        'EMAIL_HOST': os.environ.get('EMAIL_HOST', 'NOT SET'),
+        'EMAIL_HOST_USER': os.environ.get('EMAIL_HOST_USER', '')[:10] + '***' if os.environ.get('EMAIL_HOST_USER') else 'NOT SET',
+        'SMTP_NOTE': 'Render blocks SMTP on port 587 - using Resend API instead'
     }
     
-    if not email_user or not email_pass:
+    if not resend_api_key:
         return JsonResponse({
             'success': False,
-            'error': 'Email credentials not configured',
+            'error': 'RESEND_API_KEY not configured',
             'config': config_status,
-            'fix': 'Add EMAIL_HOST_USER and EMAIL_HOST_PASSWORD to Render environment variables, then redeploy'
+            'fix': 'Add RESEND_API_KEY to Render environment variables'
         })
     
-    # Try to send using Django's send_mail
     try:
-        print(f"📧 Attempting to send email to {test_email}...", flush=True)
-        print(f"   HOST: {email_host}:{email_port}", flush=True)
-        print(f"   USER: {email_user}", flush=True)
-        print(f"   TLS: {email_tls}", flush=True)
+        print(f"📧 Testing email to {test_email} via Resend API...", flush=True)
         
-        send_mail(
-            subject='DropVault Email Test ✅',
-            message=f'Email is working!\n\nSent to: {test_email}\nFrom: {email_user}',
-            from_email=email_user,
-            recipient_list=[test_email],
-            fail_silently=False,
+        response = http_requests.post(
+            'https://api.resend.com/emails',
+            headers={
+                'Authorization': f'Bearer {resend_api_key}',
+                'Content-Type': 'application/json'
+            },
+            json={
+                'from': 'DropVault <onboarding@resend.dev>',
+                'to': [test_email],
+                'subject': 'DropVault Email Test ✅',
+                'html': f'''
+                    <h1>🎉 Email is Working!</h1>
+                    <p>Congratulations! Your DropVault email system is properly configured.</p>
+                    <p>Sent to: {test_email}</p>
+                    <p>Time: {timezone.now().isoformat()}</p>
+                ''',
+                'text': f'Email is working! Sent to: {test_email}',
+            },
+            timeout=30
         )
         
-        print(f"✅ Email sent successfully!", flush=True)
+        print(f"📨 Resend Response: {response.status_code}", flush=True)
         
-        return JsonResponse({
-            'success': True,
-            'message': f'Email sent to {test_email}!',
-            'config': config_status
-        })
-        
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"❌ SMTP Auth Error: {e}", flush=True)
-        return JsonResponse({
-            'success': False,
-            'error': 'Gmail authentication failed. Check your App Password.',
-            'error_details': str(e),
-            'config': config_status,
-            'fix': 'Generate a new Gmail App Password at https://myaccount.google.com/apppasswords'
-        })
-        
-    except smtplib.SMTPException as e:
-        print(f"❌ SMTP Error: {e}", flush=True)
-        return JsonResponse({
-            'success': False,
-            'error': f'SMTP Error: {str(e)}',
-            'config': config_status
-        })
-        
+        if response.status_code in [200, 201]:
+            response_data = response.json()
+            return JsonResponse({
+                'success': True,
+                'message': f'Email sent to {test_email}!',
+                'email_id': response_data.get('id'),
+                'config': config_status,
+                'note': 'Check inbox AND spam folder'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': f'Resend API error: {response.text}',
+                'status_code': response.status_code,
+                'config': config_status
+            })
+            
     except Exception as e:
         print(f"❌ Error: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': str(e),
@@ -394,42 +411,32 @@ def api_debug_email_config(request):
     if request.method == "OPTIONS":
         return JsonResponse({})
     
-    import os
-    from django.conf import settings
-    
-    # Check environment variables directly
-    env_email_host = os.environ.get('EMAIL_HOST', '')
-    env_email_port = os.environ.get('EMAIL_PORT', '')
-    env_email_user = os.environ.get('EMAIL_HOST_USER', '')
-    env_email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
-    env_email_tls = os.environ.get('EMAIL_USE_TLS', '')
-    
-    # Check Django settings
-    django_email_host = getattr(settings, 'EMAIL_HOST', 'NOT SET')
-    django_email_port = getattr(settings, 'EMAIL_PORT', 'NOT SET')
-    django_email_user = getattr(settings, 'EMAIL_HOST_USER', 'NOT SET')
-    django_email_backend = getattr(settings, 'EMAIL_BACKEND', 'NOT SET')
+    resend_key = os.environ.get('RESEND_API_KEY', '')
+    email_user = os.environ.get('EMAIL_HOST_USER', '')
+    email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
     
     return JsonResponse({
-        'environment_variables': {
-            'EMAIL_HOST': env_email_host if env_email_host else 'NOT SET',
-            'EMAIL_PORT': env_email_port if env_email_port else 'NOT SET',
-            'EMAIL_HOST_USER': env_email_user[:10] + '***' if env_email_user else 'NOT SET',
-            'EMAIL_HOST_PASSWORD': 'SET (hidden)' if env_email_pass else 'NOT SET',
-            'EMAIL_USE_TLS': env_email_tls if env_email_tls else 'NOT SET',
+        'resend_api': {
+            'RESEND_API_KEY': 'SET' if resend_key else 'NOT SET',
+            'key_preview': resend_key[:15] + '...' if resend_key else None,
         },
-        'django_settings': {
-            'EMAIL_BACKEND': django_email_backend,
-            'EMAIL_HOST': django_email_host,
-            'EMAIL_PORT': django_email_port,
-            'EMAIL_HOST_USER': django_email_user[:10] + '***' if django_email_user else 'NOT SET',
+        'smtp_config': {
+            'EMAIL_HOST': os.environ.get('EMAIL_HOST', 'NOT SET'),
+            'EMAIL_PORT': os.environ.get('EMAIL_PORT', 'NOT SET'),
+            'EMAIL_HOST_USER': email_user[:10] + '***' if email_user else 'NOT SET',
+            'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
+            'EMAIL_USE_TLS': os.environ.get('EMAIL_USE_TLS', 'NOT SET'),
         },
+        'recommendation': 'Use Resend API on Render (SMTP is blocked)',
         'diagnosis': {
-            'user_configured': bool(env_email_user),
-            'password_configured': bool(env_email_pass),
-            'ready_to_send': bool(env_email_user and env_email_pass),
+            'resend_ready': bool(resend_key),
+            'smtp_ready': bool(email_user and email_pass),
+            'preferred_method': 'resend' if resend_key else ('smtp' if email_user else 'none'),
         }
     })
+
+
+
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
