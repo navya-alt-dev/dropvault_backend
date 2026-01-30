@@ -42,12 +42,29 @@ ALLOWED_HOSTS = [
     'dropvault-backend.onrender.com',
 ]
 
-## FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com')
-FRONTEND_URL = os.environ.get('FRONTEND_URL',"https://dropvaultnew-frontend.onrender.com")
+# ============================================================================
+# ✅ MULTIPLE FRONTEND URLS SUPPORT
+# ============================================================================
+
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvaultnew-frontend.onrender.com').strip().strip("'\"")
+
+ALLOWED_FRONTEND_URLS = [
+    'https://dropvault-frontend-ybkd.onrender.com',
+    'https://dropvaultnew-frontend.onrender.com',
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+if FRONTEND_URL and FRONTEND_URL not in ALLOWED_FRONTEND_URLS:
+    ALLOWED_FRONTEND_URLS.append(FRONTEND_URL)
+
+print(f"✅ Primary FRONTEND_URL: {FRONTEND_URL}")
+print(f"✅ All allowed frontends: {ALLOWED_FRONTEND_URLS}")
 
 SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com')
 
-# HTTPS Configuration for deployed environments
 if IS_RAILWAY or IS_RENDER:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     USE_X_FORWARDED_HOST = True
@@ -58,7 +75,6 @@ if IS_RAILWAY or IS_RENDER:
 # ============================================================================
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME', '')
 
-# ✅ FIXED: Clean up SITE_URL
 SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com').strip().strip("'\"")
 
 if IS_RENDER and RENDER_EXTERNAL_HOSTNAME:
@@ -68,7 +84,6 @@ elif IS_RAILWAY:
     if railway_url:
         SITE_URL = railway_url if railway_url.startswith('http') else f'https://{railway_url}'
 else:
-    # If not on cloud platform, use from env or default
     if not SITE_URL.startswith('http'):
         SITE_URL = f'https://{SITE_URL}'
 
@@ -78,7 +93,6 @@ print(f"✅ SITE_URL: {SITE_URL}")
 # EMAIL CONFIGURATION
 # ============================================================================
 
-
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
@@ -87,7 +101,6 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
-# Debug logging (remove in production)
 if EMAIL_HOST_USER:
     print(f"📧 Email configured: {EMAIL_HOST_USER}")
 else:
@@ -123,7 +136,6 @@ CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET', '').strip()
 CLOUDINARY_CONFIGURED = all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET])
 
 if CLOUDINARY_CONFIGURED:
-    # Configure Cloudinary
     import cloudinary
     import cloudinary.uploader
     import cloudinary.api
@@ -150,7 +162,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     'django.contrib.sites',
 
-    # Third-party apps
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
@@ -167,7 +178,6 @@ INSTALLED_APPS = [
     'files',
 ]
 
-# ✅ Add Cloudinary ONLY if configured
 if CLOUDINARY_CONFIGURED:
     if 'cloudinary' not in INSTALLED_APPS:
         INSTALLED_APPS.append('cloudinary')
@@ -177,20 +187,15 @@ if CLOUDINARY_CONFIGURED:
 # ============================================================================
 STORAGES = {
     "default": {
-        # Media files use default Django storage (we'll handle Cloudinary manually)
         "BACKEND": "django.core.files.storage.FileSystemStorage",
     },
     "staticfiles": {
-        # Static files use WhiteNoise (simple, no compression issues)
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
     },
 }
 
-# ✅ WhiteNoise settings
 WHITENOISE_MANIFEST_STRICT = False
 WHITENOISE_AUTOREFRESH = True
-
-
 
 # ============================================================================
 # ALLAUTH SETTINGS
@@ -227,7 +232,7 @@ AUTH_PASSWORD_VALIDATORS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # Must be after SecurityMiddleware
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -251,37 +256,28 @@ SESSION_COOKIE_AGE = 86400  # 24 hours
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'None'  # Required for cross-origin
-SESSION_COOKIE_SECURE = True      # Required when SameSite=None
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
 
 # ============================================================================
 # CORS CONFIGURATION
 # ============================================================================
 
-# Get frontend URL and clean it
-#FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com').strip()
-
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvaultnew-frontend.onrender.com').strip()
-
-# ✅ FIXED: Remove any quotes or extra spaces
-FRONTEND_URL = FRONTEND_URL.strip("'\"")
-
-print(f"✅ FRONTEND_URL: {FRONTEND_URL}")
-
 CORS_ALLOWED_ORIGINS = [
+    # Local development
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    ## "https://dropvault-frontend-ybkd.onrender.com", # MINE
-    ##" https://dropvaultnew-frontend.onrender.com",
-    FRONTEND_URL,  # ✅ Use the variable, not os.environ.get() again
+    # ✅ BOTH production frontends
+    "https://dropvault-frontend-ybkd.onrender.com",
+    "https://dropvaultnew-frontend.onrender.com",
 ]
 
 # Remove duplicates and empty strings
-CORS_ALLOWED_ORIGINS = [url for url in CORS_ALLOWED_ORIGINS if url and url.startswith('http')]
+CORS_ALLOWED_ORIGINS = list(set([url for url in CORS_ALLOWED_ORIGINS if url and url.startswith('http')]))
 
 print(f"✅ CORS_ALLOWED_ORIGINS: {CORS_ALLOWED_ORIGINS}")
 
@@ -291,7 +287,6 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# CRITICAL: Allow ALL custom headers including x-session-id
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -325,16 +320,19 @@ CORS_EXPOSE_HEADERS = [
 
 CORS_PREFLIGHT_MAX_AGE = 86400
 
+
 # ============================================================================
 # CSRF SETTINGS
 # ============================================================================
 CSRF_TRUSTED_ORIGINS = [
+    # Local development
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://dropvaultnew-frontend.onrender.com",
-    ## "https://dropvault-frontend-ybkd.onrender.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 
-    FRONTEND_URL,
+    "https://dropvault-frontend-ybkd.onrender.com",
+    "https://dropvaultnew-frontend.onrender.com",
     "https://*.onrender.com",
 ]
 
@@ -345,10 +343,10 @@ CSRF_COOKIE_HTTPONLY = False
 # ============================================================================
 # STATIC FILES
 # ============================================================================
+
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-# Only include static directory if it exists
 STATICFILES_DIRS = []
 if (BASE_DIR / 'static').exists():
     STATICFILES_DIRS.append(BASE_DIR / 'static')
@@ -368,25 +366,21 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 524288000   # 500MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 524288000   # 500MB
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000
 
-# ✅ ADD: Request timeout settings
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-# ✅ ADD: Keep connections alive
 CONN_MAX_AGE = 600  # 10 minutes
 
 FILE_UPLOAD_HANDLERS = [
     'django.core.files.uploadhandler.TemporaryFileUploadHandler',
 ]
 
-# ✅ Temp directory
 FILE_UPLOAD_TEMP_DIR = '/tmp'
 
-# ✅ Streaming
 STREAMING_CHUNK_SIZE = 8192
 
-# ✅ Database connection timeout
 CONN_MAX_AGE = 600
+
 # ============================================================================
 # SECURITY SETTINGS
 # ============================================================================
