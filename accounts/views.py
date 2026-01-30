@@ -36,7 +36,7 @@ User = get_user_model()
 
 def get_frontend_url():
     """Get the frontend URL from environment or use default"""
-    return os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com')
+    return os.environ.get('FRONTEND_URL', 'https://dropvaultnew-frontend.onrender.com')
 
 # =============================================================================
 # EMAIL VALIDATION HELPERS
@@ -71,9 +71,6 @@ def validate_email_complete(email):
     
     return True, None
 
-# =============================================================================
-# EMAIL SENDING FUNCTIONS
-# =============================================================================
 
 # =============================================================================
 # EMAIL SENDING FUNCTIONS - GMAIL SMTP (Works for ALL users)
@@ -291,22 +288,24 @@ If you didn't request this, ignore this email.
         return False
 
 
+# =============================================================================
+# API: TEST EMAIL - ONLY ONE FUNCTION! (Gmail SMTP)
+# =============================================================================
+
 @csrf_exempt
 def api_test_email(request):
-    """Test email sending - works with ANY email address"""
+    """Test email sending - works with ANY email address using Gmail SMTP"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
-    from django.core.mail import send_mail
-    
-    # Get email from request parameter - can be ANY email!
+    # Get email from request parameter
     test_email = request.GET.get('email', '')
     
     if not test_email:
         return JsonResponse({
             'success': False,
-            'error': 'Please provide email parameter: /api/test-email/?email=your@email.com',
-            'example': '/api/test-email/?email=user@example.com'
+            'error': 'Please provide email parameter',
+            'example': '/api/test-email/?email=your@email.com'
         })
     
     # Check configuration
@@ -324,7 +323,8 @@ def api_test_email(request):
                 'EMAIL_PORT': email_port,
                 'EMAIL_HOST_USER': 'SET' if email_user else 'NOT SET',
                 'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
-            }
+            },
+            'fix': 'Add EMAIL_HOST_USER and EMAIL_HOST_PASSWORD to Render environment variables'
         })
     
     try:
@@ -332,7 +332,7 @@ def api_test_email(request):
             subject='DropVault Email Test ✅',
             message=f'Congratulations! Email is working correctly.\n\nThis test email was sent to: {test_email}\n\nYour DropVault email verification system is properly configured!',
             from_email=email_user,
-            recipient_list=[test_email],  # Sends to ANY email provided!
+            recipient_list=[test_email],
             fail_silently=False,
         )
         
@@ -348,13 +348,14 @@ def api_test_email(request):
         return JsonResponse({
             'success': False,
             'error': str(e),
+            'error_type': type(e).__name__,
             'config': {
                 'EMAIL_HOST': email_host,
                 'EMAIL_PORT': email_port,
                 'EMAIL_HOST_USER': email_user[:5] + '***' if email_user else 'NOT SET',
             }
         })
-
+        
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -499,14 +500,16 @@ def api_signup(request):
                     # Resend verification email
                     verification_token = profile.generate_verification_token()
                     verification_link = f"{get_frontend_url()}/verify-email?token={verification_token}"
-                    send_verification_email(existing, verification_link)
-                    
+
+                    email_sent = send_verification_email(existing, verification_link)
+
                     logger.info(f"   📧 Resent verification: {email}")
                     return JsonResponse({
                         'success': True,
                         'requires_verification': True,
                         'message': 'Verification email sent. Please check your inbox.',
-                        'email': email
+                        'email': email,
+                         'email_sent': email_sent
                     })
             except UserProfile.DoesNotExist:
                 pass
@@ -834,7 +837,7 @@ def api_login(request):
                 'error': 'Please verify your email first. Check your inbox.',
                 'requires_verification': True,
                 'email': email,
-                'email_sent': should_resend
+                'email_sent': email_sent
             }, status=403)
         
         # Login success!
@@ -1734,54 +1737,3 @@ def disable_mfa(request):
         TOTPDevice.objects.filter(user=request.user).delete()
         return redirect('dashboard')
     return render(request, 'disable_mfa.html')
-
-
-@csrf_exempt
-def api_test_email(request):
-    """Test email sending"""
-    if request.method == "OPTIONS":
-        return JsonResponse({})
-    
-    import os
-    resend_api_key = os.environ.get('RESEND_API_KEY', '')
-    
-    if not resend_api_key:
-        return JsonResponse({
-            'success': False,
-            'error': 'RESEND_API_KEY not configured',
-            'env_vars': {
-                'RESEND_API_KEY': 'NOT SET' if not resend_api_key else 'SET (hidden)',
-                'FRONTEND_URL': os.environ.get('FRONTEND_URL', 'NOT SET'),
-            }
-        })
-    
-    # Try sending a test email
-    try:
-        import requests
-        
-        response = requests.post(
-            'https://api.resend.com/emails',
-            headers={
-                'Authorization': f'Bearer {resend_api_key}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'from': 'DropVault <onboarding@resend.dev>',
-                'to': ['delivered@resend.dev'],  # Resend test email
-                'subject': 'DropVault Email Test',
-                'html': '<p>This is a test email from DropVault</p>',
-            },
-            timeout=10
-        )
-        
-        return JsonResponse({
-            'success': response.status_code in [200, 201],
-            'status_code': response.status_code,
-            'response': response.json() if response.status_code in [200, 201] else response.text,
-        })
-        
-    except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'error': str(e)
-        })
