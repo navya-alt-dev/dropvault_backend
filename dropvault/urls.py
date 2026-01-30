@@ -64,6 +64,7 @@ urlpatterns = [
     path('api/user/password/', accounts_views.api_change_password, name='api_change_password'),
     path('api/user/preferences/', accounts_views.api_preferences, name='api_preferences'),
     path('api/user/storage/', accounts_views.api_user_storage, name='api_user_storage'),
+    path('api/user/update-name/', accounts_views.api_update_user_name, name='api_update_user_name'),
 
     # ============ NOTIFICATION APIs ============
     path('api/notifications/', accounts_views.api_notifications, name='api_notifications'),
