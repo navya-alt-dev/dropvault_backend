@@ -75,55 +75,186 @@ def validate_email_complete(email):
 # EMAIL SENDING FUNCTIONS
 # =============================================================================
 
+# =============================================================================
+# EMAIL SENDING FUNCTIONS - GMAIL SMTP (Works for ALL users)
+# =============================================================================
+
 def send_verification_email(user, verification_link):
-    """Send verification email using Resend API - FIXED"""
+    """Send verification email using Gmail SMTP - Works for ANY email address"""
     try:
-        resend_api_key = os.environ.get('RESEND_API_KEY', '')
+        from django.core.mail import EmailMultiAlternatives
         
         logger.info("=" * 60)
-        logger.info("📧 SEND_VERIFICATION_EMAIL")
+        logger.info("📧 SEND_VERIFICATION_EMAIL (Gmail SMTP)")
         logger.info(f"   To: {user.email}")
         logger.info(f"   Link: {verification_link}")
         
-        if not resend_api_key:
-            logger.error("❌ RESEND_API_KEY not configured!")
-            print("❌ RESEND_API_KEY not set!", flush=True)
+        # Get email credentials from environment
+        email_host_user = os.environ.get('EMAIL_HOST_USER', '')
+        email_host_password = os.environ.get('EMAIL_HOST_PASSWORD', '')
+        
+        if not email_host_user or not email_host_password:
+            logger.error("❌ EMAIL_HOST_USER or EMAIL_HOST_PASSWORD not configured!")
+            logger.error(f"   EMAIL_HOST_USER: {'SET' if email_host_user else 'NOT SET'}")
+            logger.error(f"   EMAIL_HOST_PASSWORD: {'SET' if email_host_password else 'NOT SET'}")
             return False
         
-        logger.info(f"   API Key: {resend_api_key[:10]}...")
-        print(f"✅ Resend API Key: {resend_api_key[:10]}...", flush=True)
+        logger.info(f"   From: {email_host_user}")
         
         subject = "Verify your DropVault account"
         
-        # ✅ Simplified HTML (some email clients block complex CSS)
+        # HTML email template
+        html_message = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 30px; text-align: center;">
+                            <h1 style="color: white; margin: 0; font-size: 28px;">🔐 DropVault</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="color: #333; margin: 0 0 20px 0;">Hi {user.first_name or user.username}! 👋</h2>
+                            
+                            <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                                Welcome to DropVault! You're just one step away from securing your files in the cloud.
+                            </p>
+                            
+                            <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                                Please verify your email address by clicking the button below:
+                            </p>
+                            
+                            <!-- Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{verification_link}" 
+                                           style="display: inline-block; background: linear-gradient(135deg, #4f46e5, #7c3aed); 
+                                                  color: white; padding: 15px 40px; text-decoration: none; 
+                                                  border-radius: 8px; font-weight: bold; font-size: 16px;">
+                                            ✓ Verify My Email
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="color: #999; font-size: 14px;">
+                                Or copy and paste this link in your browser:
+                            </p>
+                            <p style="background: #f5f5f5; padding: 15px; border-radius: 5px; 
+                                      word-break: break-all; color: #4f46e5; font-size: 14px;">
+                                {verification_link}
+                            </p>
+                            
+                            <p style="color: #e74c3c; font-size: 14px; margin-top: 20px;">
+                                ⏰ This link will expire in 24 hours.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background: #f9f9f9; padding: 20px 30px; border-top: 1px solid #eee;">
+                            <p style="color: #999; font-size: 12px; margin: 0; text-align: center;">
+                                If you didn't create an account with DropVault, please ignore this email.
+                            </p>
+                            <p style="color: #999; font-size: 12px; margin: 10px 0 0 0; text-align: center;">
+                                © 2024 DropVault. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+        
+        # Plain text version
+        plain_message = f"""
+Hi {user.first_name or user.username},
+
+Welcome to DropVault!
+
+Please verify your email address by clicking this link:
+
+{verification_link}
+
+This link will expire in 24 hours.
+
+If you didn't create an account with DropVault, please ignore this email.
+
+- The DropVault Team
+"""
+        
+        # Send email using Django's email system
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_message,
+            from_email=email_host_user,
+            to=[user.email]  # This sends to ANY user's email!
+        )
+        email.attach_alternative(html_message, "text/html")
+        email.send(fail_silently=False)
+        
+        logger.info(f"✅ EMAIL SENT SUCCESSFULLY to {user.email}!")
+        logger.info("=" * 60)
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Email sending failed: {e}")
+        import traceback
+        traceback.print_exc()
+        logger.info("=" * 60)
+        return False
+
+
+def send_password_reset_email(user, reset_link):
+    """Send password reset email using Gmail SMTP"""
+    try:
+        from django.core.mail import EmailMultiAlternatives
+        
+        email_host_user = os.environ.get('EMAIL_HOST_USER', '')
+        
+        if not email_host_user:
+            logger.error("❌ EMAIL_HOST_USER not configured!")
+            return False
+        
+        subject = "Reset your DropVault password"
+        
         html_message = f"""
 <!DOCTYPE html>
 <html>
 <body style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
     <div style="max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px;">
         <h1 style="color: #4f46e5;">🔐 DropVault</h1>
-        <h2>Hi {user.first_name or user.username}!</h2>
-        <p>Welcome to DropVault! Please verify your email address to complete your registration.</p>
+        <h2>Password Reset Request</h2>
+        <p>Hi {user.first_name or user.username},</p>
+        <p>We received a request to reset your password. Click the button below to create a new password:</p>
         
         <div style="text-align: center; margin: 30px 0;">
-            <a href="{verification_link}" 
+            <a href="{reset_link}" 
                style="background-color: #4f46e5; color: white; padding: 15px 30px; 
                       text-decoration: none; border-radius: 5px; font-weight: bold;">
-                ✓ Verify My Email
+                Reset Password
             </a>
         </div>
         
-        <p>Or copy and paste this link:</p>
-        <p style="word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">
-            {verification_link}
-        </p>
-        
-        <p><strong>This link will expire in 24 hours.</strong></p>
-        
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
-        <p style="color: #666; font-size: 12px;">
-            If you didn't create an account with DropVault, please ignore this email.
-        </p>
+        <p style="color: #999; font-size: 14px;">This link expires in 1 hour.</p>
+        <p style="color: #999; font-size: 14px;">If you didn't request this, ignore this email.</p>
     </div>
 </body>
 </html>
@@ -132,122 +263,96 @@ def send_verification_email(user, verification_link):
         plain_message = f"""
 Hi {user.first_name or user.username},
 
-Welcome to DropVault! Please verify your email by clicking:
+We received a request to reset your password.
 
-{verification_link}
+Click here to reset: {reset_link}
 
-This link expires in 24 hours.
+This link expires in 1 hour.
+
+If you didn't request this, ignore this email.
 
 - DropVault Team
 """
         
-        from_email = os.environ.get('DEFAULT_FROM_EMAIL', 'DropVault <onboarding@resend.dev>')
-        
-        logger.info(f"   From: {from_email}")
-        logger.info(f"   Sending to Resend API...")
-        print(f"📤 Sending email to {user.email}...", flush=True)
-        
-        response = requests.post(
-            'https://api.resend.com/emails',
-            headers={
-                'Authorization': f'Bearer {resend_api_key}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'from': from_email,
-                'to': [user.email],
-                'subject': subject,
-                'html': html_message,
-                'text': plain_message,
-            },
-            timeout=30
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=plain_message,
+            from_email=email_host_user,
+            to=[user.email]
         )
+        email.attach_alternative(html_message, "text/html")
+        email.send(fail_silently=False)
         
-        logger.info(f"   Response: {response.status_code}")
-        print(f"📨 Resend Response: {response.status_code}", flush=True)
+        logger.info(f"✅ Password reset email sent to {user.email}")
+        return True
         
-        if response.status_code in [200, 201]:
-            response_data = response.json()
-            email_id = response_data.get('id', 'N/A')
-            
-            logger.info(f"✅ EMAIL SENT!")
-            logger.info(f"   Email ID: {email_id}")
-            logger.info(f"   Check delivery: https://resend.com/emails/{email_id}")
-            logger.info("=" * 60)
-            
-            print(f"✅ Email sent! ID: {email_id}", flush=True)
-            print(f"🔗 Check delivery: https://resend.com/emails/{email_id}", flush=True)
-            
-            return True
-        else:
-            error_text = response.text
-            logger.error(f"❌ Resend error: {response.status_code}")
-            logger.error(f"   Error: {error_text}")
-            logger.info("=" * 60)
-            
-            print(f"❌ Email failed: {error_text}", flush=True)
-            return False
-            
     except Exception as e:
-        logger.error(f"❌ Email exception: {e}")
-        logger.info("=" * 60)
-        import traceback
-        traceback.print_exc()
-        print(f"❌ Exception: {str(e)}", flush=True)
+        logger.error(f"❌ Password reset email failed: {e}")
         return False
+
 
 @csrf_exempt
 def api_test_email(request):
-    """Test email sending - UPDATED"""
+    """Test email sending - works with ANY email address"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
-    import os
-    import requests
+    from django.core.mail import send_mail
     
-    resend_api_key = os.environ.get('RESEND_API_KEY', '')
+    # Get email from request parameter - can be ANY email!
+    test_email = request.GET.get('email', '')
     
-    if not resend_api_key:
+    if not test_email:
         return JsonResponse({
             'success': False,
-            'error': 'RESEND_API_KEY not configured',
+            'error': 'Please provide email parameter: /api/test-email/?email=your@email.com',
+            'example': '/api/test-email/?email=user@example.com'
         })
     
-    # ✅ FIX: Send to actual user email (from request or parameter)
-    test_email = request.GET.get('email', 'navyashreeam2004@gmail.com')  # ← Use actual email
+    # Check configuration
+    email_user = os.environ.get('EMAIL_HOST_USER', '')
+    email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
+    email_host = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+    email_port = os.environ.get('EMAIL_PORT', '587')
+    
+    if not email_user or not email_pass:
+        return JsonResponse({
+            'success': False,
+            'error': 'Email not configured on server',
+            'config': {
+                'EMAIL_HOST': email_host,
+                'EMAIL_PORT': email_port,
+                'EMAIL_HOST_USER': 'SET' if email_user else 'NOT SET',
+                'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
+            }
+        })
     
     try:
-        response = requests.post(
-            'https://api.resend.com/emails',
-            headers={
-                'Authorization': f'Bearer {resend_api_key}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'from': 'DropVault <onboarding@resend.dev>',
-                'to': [test_email],  # ✅ Send to real email
-                'subject': 'DropVault Email Test',
-                'html': f'''
-                    <h1>DropVault Email Test</h1>
-                    <p>If you received this email, your Resend configuration is working!</p>
-                    <p>Sent to: {test_email}</p>
-                    <p>Time: {timezone.now().isoformat()}</p>
-                ''',
-            },
-            timeout=10
+        send_mail(
+            subject='DropVault Email Test ✅',
+            message=f'Congratulations! Email is working correctly.\n\nThis test email was sent to: {test_email}\n\nYour DropVault email verification system is properly configured!',
+            from_email=email_user,
+            recipient_list=[test_email],  # Sends to ANY email provided!
+            fail_silently=False,
         )
         
         return JsonResponse({
-            'success': response.status_code in [200, 201],
-            'status_code': response.status_code,
-            'response': response.json() if response.status_code in [200, 201] else response.text,
-            'sent_to': test_email,
+            'success': True,
+            'message': f'Email sent successfully to {test_email}!',
+            'from': email_user,
+            'to': test_email,
+            'note': 'Check inbox and spam folder'
         })
         
     except Exception as e:
         return JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'config': {
+                'EMAIL_HOST': email_host,
+                'EMAIL_PORT': email_port,
+                'EMAIL_HOST_USER': email_user[:5] + '***' if email_user else 'NOT SET',
+            }
         })
 
 # =============================================================================

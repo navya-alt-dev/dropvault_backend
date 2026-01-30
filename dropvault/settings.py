@@ -43,7 +43,7 @@ ALLOWED_HOSTS = [
 ]
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://dropvault-frontend-ybkd.onrender.com')
-FRONTEND_URL = os.environ.get('FRONTEND_URL',"https://dropvault-frontend-ybkd.onrender.com")
+FRONTEND_URL = os.environ.get('FRONTEND_URL',"https://dropvaultnew-frontend.onrender.com")
 
 SITE_URL = os.environ.get('SITE_URL', 'https://dropvault-backend.onrender.com')
 
@@ -77,25 +77,21 @@ print(f"✅ SITE_URL: {SITE_URL}")
 # ============================================================================
 # EMAIL CONFIGURATION
 # ============================================================================
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').strip()
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '').strip()
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '').strip()
 
-if RESEND_API_KEY:
-    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'DropVault <onboarding@resend.dev>')
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print(f"✅ Email: Using Resend API")
-elif EMAIL_HOST_USER and EMAIL_HOST_PASSWORD and not IS_RENDER:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'DropVault <{EMAIL_HOST_USER}>')
-    print(f"✅ Email: Using SMTP (local dev)")
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# Debug logging (remove in production)
+if EMAIL_HOST_USER:
+    print(f"📧 Email configured: {EMAIL_HOST_USER}")
 else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    DEFAULT_FROM_EMAIL = 'DropVault <noreply@dropvault.com>'
-    print("⚠️ Email: Console only")
+    print("⚠️ Email NOT configured - EMAIL_HOST_USER is missing!")
 
 # ============================================================================
 # DATABASE CONFIGURATION
