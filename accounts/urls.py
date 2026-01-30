@@ -14,6 +14,8 @@ urlpatterns = [
 
 
     # Email Verification (API)
+    path('api/debug-email-config/', views.api_debug_email_config, name='api_debug_email_config'),
+    
     path('api/verify-email-token/', views.api_verify_email_token, name='api_verify_email_token'),
     path('api/resend-verification/', views.api_resend_verification, name='api_resend_verification'),
 

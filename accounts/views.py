@@ -294,68 +294,142 @@ If you didn't request this, ignore this email.
 
 @csrf_exempt
 def api_test_email(request):
-    """Test email sending - works with ANY email address using Gmail SMTP"""
+    """Test email sending with detailed error reporting"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
-    # Get email from request parameter
+    import os
+    import smtplib
+    from email.mime.text import MIMEText
+    from django.core.mail import send_mail
+    
     test_email = request.GET.get('email', '')
     
     if not test_email:
         return JsonResponse({
             'success': False,
-            'error': 'Please provide email parameter',
-            'example': '/api/test-email/?email=your@email.com'
+            'error': 'Please provide email: /api/test-email/?email=your@email.com'
         })
     
-    # Check configuration
+    # Get config
+    email_host = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+    email_port = int(os.environ.get('EMAIL_PORT', 587))
     email_user = os.environ.get('EMAIL_HOST_USER', '')
     email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
-    email_host = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-    email_port = os.environ.get('EMAIL_PORT', '587')
+    email_tls = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('true', '1', 'yes')
+    
+    # Check configuration
+    config_status = {
+        'EMAIL_HOST': email_host or 'NOT SET',
+        'EMAIL_PORT': email_port,
+        'EMAIL_USE_TLS': email_tls,
+        'EMAIL_HOST_USER': email_user[:10] + '***' if email_user else 'NOT SET',
+        'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
+    }
     
     if not email_user or not email_pass:
         return JsonResponse({
             'success': False,
-            'error': 'Email not configured on server',
-            'config': {
-                'EMAIL_HOST': email_host,
-                'EMAIL_PORT': email_port,
-                'EMAIL_HOST_USER': 'SET' if email_user else 'NOT SET',
-                'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
-            },
-            'fix': 'Add EMAIL_HOST_USER and EMAIL_HOST_PASSWORD to Render environment variables'
+            'error': 'Email credentials not configured',
+            'config': config_status,
+            'fix': 'Add EMAIL_HOST_USER and EMAIL_HOST_PASSWORD to Render environment variables, then redeploy'
         })
     
+    # Try to send using Django's send_mail
     try:
+        print(f"📧 Attempting to send email to {test_email}...", flush=True)
+        print(f"   HOST: {email_host}:{email_port}", flush=True)
+        print(f"   USER: {email_user}", flush=True)
+        print(f"   TLS: {email_tls}", flush=True)
+        
         send_mail(
             subject='DropVault Email Test ✅',
-            message=f'Congratulations! Email is working correctly.\n\nThis test email was sent to: {test_email}\n\nYour DropVault email verification system is properly configured!',
+            message=f'Email is working!\n\nSent to: {test_email}\nFrom: {email_user}',
             from_email=email_user,
             recipient_list=[test_email],
             fail_silently=False,
         )
         
+        print(f"✅ Email sent successfully!", flush=True)
+        
         return JsonResponse({
             'success': True,
-            'message': f'Email sent successfully to {test_email}!',
-            'from': email_user,
-            'to': test_email,
-            'note': 'Check inbox and spam folder'
+            'message': f'Email sent to {test_email}!',
+            'config': config_status
+        })
+        
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"❌ SMTP Auth Error: {e}", flush=True)
+        return JsonResponse({
+            'success': False,
+            'error': 'Gmail authentication failed. Check your App Password.',
+            'error_details': str(e),
+            'config': config_status,
+            'fix': 'Generate a new Gmail App Password at https://myaccount.google.com/apppasswords'
+        })
+        
+    except smtplib.SMTPException as e:
+        print(f"❌ SMTP Error: {e}", flush=True)
+        return JsonResponse({
+            'success': False,
+            'error': f'SMTP Error: {str(e)}',
+            'config': config_status
         })
         
     except Exception as e:
+        print(f"❌ Error: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return JsonResponse({
             'success': False,
             'error': str(e),
             'error_type': type(e).__name__,
-            'config': {
-                'EMAIL_HOST': email_host,
-                'EMAIL_PORT': email_port,
-                'EMAIL_HOST_USER': email_user[:5] + '***' if email_user else 'NOT SET',
-            }
+            'config': config_status
         })
-        
+
+
+@csrf_exempt
+def api_debug_email_config(request):
+    """Debug endpoint to check email configuration"""
+    if request.method == "OPTIONS":
+        return JsonResponse({})
+    
+    import os
+    from django.conf import settings
+    
+    # Check environment variables directly
+    env_email_host = os.environ.get('EMAIL_HOST', '')
+    env_email_port = os.environ.get('EMAIL_PORT', '')
+    env_email_user = os.environ.get('EMAIL_HOST_USER', '')
+    env_email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
+    env_email_tls = os.environ.get('EMAIL_USE_TLS', '')
+    
+    # Check Django settings
+    django_email_host = getattr(settings, 'EMAIL_HOST', 'NOT SET')
+    django_email_port = getattr(settings, 'EMAIL_PORT', 'NOT SET')
+    django_email_user = getattr(settings, 'EMAIL_HOST_USER', 'NOT SET')
+    django_email_backend = getattr(settings, 'EMAIL_BACKEND', 'NOT SET')
+    
+    return JsonResponse({
+        'environment_variables': {
+            'EMAIL_HOST': env_email_host if env_email_host else 'NOT SET',
+            'EMAIL_PORT': env_email_port if env_email_port else 'NOT SET',
+            'EMAIL_HOST_USER': env_email_user[:10] + '***' if env_email_user else 'NOT SET',
+            'EMAIL_HOST_PASSWORD': 'SET (hidden)' if env_email_pass else 'NOT SET',
+            'EMAIL_USE_TLS': env_email_tls if env_email_tls else 'NOT SET',
+        },
+        'django_settings': {
+            'EMAIL_BACKEND': django_email_backend,
+            'EMAIL_HOST': django_email_host,
+            'EMAIL_PORT': django_email_port,
+            'EMAIL_HOST_USER': django_email_user[:10] + '***' if django_email_user else 'NOT SET',
+        },
+        'diagnosis': {
+            'user_configured': bool(env_email_user),
+            'password_configured': bool(env_email_pass),
+            'ready_to_send': bool(env_email_user and env_email_pass),
+        }
+    })
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
@@ -752,7 +826,7 @@ def api_resend_verification(request):
 
 @csrf_exempt
 def api_login(request):
-    """User login with email verification check - FIXED to allow Google users"""
+    """User login with email verification check"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
@@ -764,8 +838,8 @@ def api_login(request):
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
         
-        logger.info("=" * 60)
         logger.info(f"🔐 LOGIN ATTEMPT: {email}")
+        print(f"🔐 LOGIN ATTEMPT: {email}", flush=True)
         
         if not email or not is_valid_email_format(email):
             return JsonResponse({'success': False, 'error': 'Valid email required'}, status=400)
@@ -776,61 +850,64 @@ def api_login(request):
         # Find user
         try:
             user = User.objects.get(email=email)
+            print(f"   Found user: {user.username}", flush=True)
         except User.DoesNotExist:
-            logger.warning(f"   ❌ User not found: {email}")
+            print(f"   ❌ User not found: {email}", flush=True)
             return JsonResponse({'success': False, 'error': 'Invalid email or password'}, status=401)
         
         if not user.is_active:
             return JsonResponse({'success': False, 'error': 'Account disabled'}, status=403)
         
-        # ✅ FIX: Check if user has password OR is Google user
+        # Check if user has password
         if not user.has_usable_password():
+            print(f"   ❌ No usable password", flush=True)
             try:
                 profile = user.profile
                 if profile.signup_method == 'google':
-                    # ✅ Google user trying to login with password
                     return JsonResponse({
                         'success': False,
-                        'error': 'This account was created with Google. Please use "Continue with Google" or set a password in settings.',
+                        'error': 'This account uses Google login. Please use "Continue with Google".',
                         'is_google_account': True,
-                        'can_set_password': True,
-                        'action_required': 'USE_GOOGLE_OR_SET_PASSWORD'
                     }, status=400)
             except:
                 pass
-            
-            return JsonResponse({
-                'success': False, 
-                'error': 'Please use Google login for this account.'
-            }, status=400)
+            return JsonResponse({'success': False, 'error': 'Please use Google login'}, status=400)
         
         # Check password
         if not check_password(password, user.password):
-            logger.warning(f"   ❌ Wrong password: {email}")
+            print(f"   ❌ Wrong password", flush=True)
             return JsonResponse({'success': False, 'error': 'Invalid email or password'}, status=401)
+        
+        print(f"   ✅ Password correct", flush=True)
         
         # Check email verification
         try:
             profile = user.profile
             email_verified = profile.email_verified
+            print(f"   Email verified: {email_verified}", flush=True)
         except UserProfile.DoesNotExist:
             profile = UserProfile.objects.create(user=user, email_verified=False)
             email_verified = False
         
         if not email_verified:
-            logger.warning(f"   ⚠️ Email not verified: {email}")
+            print(f"   ⚠️ Email not verified, sending verification...", flush=True)
             
-            # Auto-resend if not sent recently
+            # Check if we should resend
             should_resend = True
             if profile.verification_sent_at:
                 time_since = timezone.now() - profile.verification_sent_at
                 if time_since.total_seconds() < 300:
                     should_resend = False
             
+            email_sent = False
             if should_resend:
-                verification_token = profile.generate_verification_token()
-                verification_link = f"{get_frontend_url()}/verify-email?token={verification_token}"
-                send_verification_email(user, verification_link)
+                try:
+                    verification_token = profile.generate_verification_token()
+                    verification_link = f"{get_frontend_url()}/verify-email?token={verification_token}"
+                    email_sent = send_verification_email(user, verification_link)
+                    print(f"   📧 Verification email sent: {email_sent}", flush=True)
+                except Exception as e:
+                    print(f"   ❌ Failed to send verification: {e}", flush=True)
             
             return JsonResponse({
                 'success': False,
@@ -844,8 +921,7 @@ def api_login(request):
         login(request, user, backend='django.contrib.auth.backends.ModelBackend')
         token, _ = Token.objects.get_or_create(user=user)
         
-        logger.info(f"✅ LOGIN SUCCESS: {email}")
-        logger.info("=" * 60)
+        print(f"✅ LOGIN SUCCESS: {email}", flush=True)
         
         return JsonResponse({
             'success': True,
@@ -861,13 +937,19 @@ def api_login(request):
             }
         })
         
-    except json.JSONDecodeError:
-        return JsonResponse({'success': False, 'error': 'Invalid request'}, status=400)
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON Error: {e}", flush=True)
+        return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:
-        logger.error(f"❌ Login error: {e}")
+        print(f"❌ Login Error: {e}", flush=True)
         import traceback
         traceback.print_exc()
-        return JsonResponse({'success': False, 'error': 'Login failed'}, status=500)
+        # Return the actual error, not generic message
+        return JsonResponse({
+            'success': False, 
+            'error': f'Login failed: {str(e)}',
+            'error_type': type(e).__name__
+        }, status=500)
 
 # =============================================================================
 # API: GOOGLE OAUTH - EMAIL IS VERIFIED BY GOOGLE
