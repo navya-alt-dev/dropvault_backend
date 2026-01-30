@@ -73,85 +73,63 @@ def validate_email_complete(email):
 
 
 # =============================================================================
-# EMAIL SENDING FUNCTIONS - RESEND API (Works on Render!)
+# EMAIL SENDING FUNCTIONS - BREVO API (Free 300 emails/day!)
 # =============================================================================
 
 def send_verification_email(user, verification_link):
-    """Send verification email using Resend API - Works on Render free tier!"""
+    """Send verification email using Brevo API - Works on Render free tier!"""
     try:
-        import requests as http_requests  # Rename to avoid conflict
+        import requests as http_requests
         
         logger.info("=" * 60)
-        logger.info("📧 SEND_VERIFICATION_EMAIL (Resend API)")
+        logger.info("📧 SEND_VERIFICATION_EMAIL")
         logger.info(f"   To: {user.email}")
-        logger.info(f"   Link: {verification_link}")
         print(f"📧 Sending verification email to {user.email}...", flush=True)
         
-        # Get Resend API key
+        # Try Brevo first, then Resend
+        brevo_api_key = os.environ.get('BREVO_API_KEY', '')
         resend_api_key = os.environ.get('RESEND_API_KEY', '')
-        
-        if not resend_api_key:
-            logger.error("❌ RESEND_API_KEY not configured!")
-            print("❌ RESEND_API_KEY not set in environment!", flush=True)
-            
-            # Fallback: Try Gmail SMTP (won't work on Render free tier)
-            return send_verification_email_smtp(user, verification_link)
-        
-        logger.info(f"   Using Resend API: {resend_api_key[:10]}...")
         
         subject = "Verify your DropVault account"
         
-        # HTML email template
         html_message = f"""
 <!DOCTYPE html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+<head><meta charset="UTF-8"></head>
 <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
         <tr>
             <td align="center">
-                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <table width="600" cellpadding="0" cellspacing="0" style="background: white; border-radius: 10px; overflow: hidden;">
                     <tr>
                         <td style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 30px; text-align: center;">
-                            <h1 style="color: white; margin: 0; font-size: 28px;">🔐 DropVault</h1>
+                            <h1 style="color: white; margin: 0;">🔐 DropVault</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style="padding: 40px 30px;">
-                            <h2 style="color: #333; margin: 0 0 20px 0;">Hi {user.first_name or user.username}! 👋</h2>
-                            <p style="color: #666; font-size: 16px; line-height: 1.6;">
-                                Welcome to DropVault! Please verify your email address by clicking the button below:
+                            <h2 style="color: #333;">Hi {user.first_name or user.username}! 👋</h2>
+                            <p style="color: #666; font-size: 16px;">
+                                Welcome to DropVault! Please verify your email:
                             </p>
-                            <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                            <table width="100%" style="margin: 30px 0;">
                                 <tr>
                                     <td align="center">
                                         <a href="{verification_link}" 
-                                           style="display: inline-block; background: linear-gradient(135deg, #4f46e5, #7c3aed); 
+                                           style="display: inline-block; background: #4f46e5; 
                                                   color: white; padding: 15px 40px; text-decoration: none; 
-                                                  border-radius: 8px; font-weight: bold; font-size: 16px;">
+                                                  border-radius: 8px; font-weight: bold;">
                                             ✓ Verify My Email
                                         </a>
                                     </td>
                                 </tr>
                             </table>
-                            <p style="color: #999; font-size: 14px;">Or copy and paste this link:</p>
+                            <p style="color: #999; font-size: 14px;">Or copy this link:</p>
                             <p style="background: #f5f5f5; padding: 15px; border-radius: 5px; 
                                       word-break: break-all; color: #4f46e5; font-size: 14px;">
                                 {verification_link}
                             </p>
-                            <p style="color: #e74c3c; font-size: 14px; margin-top: 20px;">
-                                ⏰ This link will expire in 24 hours.
-                            </p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="background: #f9f9f9; padding: 20px 30px; border-top: 1px solid #eee;">
-                            <p style="color: #999; font-size: 12px; margin: 0; text-align: center;">
-                                If you didn't create an account, please ignore this email.
-                            </p>
+                            <p style="color: #e74c3c; font-size: 14px;">⏰ Expires in 24 hours.</p>
                         </td>
                     </tr>
                 </table>
@@ -162,60 +140,75 @@ def send_verification_email(user, verification_link):
 </html>
 """
         
-        plain_message = f"""
-Hi {user.first_name or user.username},
-
-Welcome to DropVault!
-
-Please verify your email address by clicking this link:
-
-{verification_link}
-
-This link will expire in 24 hours.
-
-- The DropVault Team
-"""
+        plain_message = f"Verify your email: {verification_link}"
         
-        # Send via Resend API
-        response = http_requests.post(
-            'https://api.resend.com/emails',
-            headers={
-                'Authorization': f'Bearer {resend_api_key}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'from': 'DropVault <onboarding@resend.dev>',
-                'to': [user.email],
-                'subject': subject,
-                'html': html_message,
-                'text': plain_message,
-            },
-            timeout=30
-        )
+        # Try Brevo API first
+        if brevo_api_key:
+            print("📧 Using Brevo API...", flush=True)
+            try:
+                response = http_requests.post(
+                    'https://api.brevo.com/v3/smtp/email',
+                    headers={
+                        'api-key': brevo_api_key,
+                        'Content-Type': 'application/json'
+                    },
+                    json={
+                        'sender': {'name': 'DropVault', 'email': 'dropvault.dev@gmail.com'},
+                        'to': [{'email': user.email, 'name': user.first_name or user.username}],
+                        'subject': subject,
+                        'htmlContent': html_message,
+                        'textContent': plain_message,
+                    },
+                    timeout=30
+                )
+                
+                print(f"📨 Brevo Response: {response.status_code}", flush=True)
+                
+                if response.status_code in [200, 201, 202]:
+                    logger.info(f"✅ Email sent via Brevo to {user.email}")
+                    print(f"✅ Email sent via Brevo!", flush=True)
+                    return True
+                else:
+                    print(f"❌ Brevo error: {response.text}", flush=True)
+            except Exception as e:
+                print(f"❌ Brevo failed: {e}", flush=True)
         
-        logger.info(f"   Resend Response: {response.status_code}")
-        print(f"📨 Resend Response: {response.status_code}", flush=True)
+        # Fallback to Resend (only works for verified domains or own email)
+        if resend_api_key:
+            print("📧 Trying Resend API...", flush=True)
+            try:
+                response = http_requests.post(
+                    'https://api.resend.com/emails',
+                    headers={
+                        'Authorization': f'Bearer {resend_api_key}',
+                        'Content-Type': 'application/json'
+                    },
+                    json={
+                        'from': 'DropVault <onboarding@resend.dev>',
+                        'to': [user.email],
+                        'subject': subject,
+                        'html': html_message,
+                        'text': plain_message,
+                    },
+                    timeout=30
+                )
+                
+                if response.status_code in [200, 201]:
+                    logger.info(f"✅ Email sent via Resend to {user.email}")
+                    return True
+                else:
+                    print(f"❌ Resend error: {response.text}", flush=True)
+            except Exception as e:
+                print(f"❌ Resend failed: {e}", flush=True)
         
-        if response.status_code in [200, 201]:
-            response_data = response.json()
-            email_id = response_data.get('id', 'N/A')
-            logger.info(f"✅ EMAIL SENT! ID: {email_id}")
-            print(f"✅ Email sent successfully! ID: {email_id}", flush=True)
-            logger.info("=" * 60)
-            return True
-        else:
-            error_text = response.text
-            logger.error(f"❌ Resend error: {response.status_code} - {error_text}")
-            print(f"❌ Resend error: {error_text}", flush=True)
-            logger.info("=" * 60)
-            return False
+        logger.error("❌ All email methods failed!")
+        return False
             
     except Exception as e:
         logger.error(f"❌ Email sending failed: {e}")
         print(f"❌ Email error: {e}", flush=True)
         import traceback
         traceback.print_exc()
-        logger.info("=" * 60)
         return False
 
 
@@ -249,14 +242,14 @@ def send_verification_email_smtp(user, verification_link):
 
 
 def send_password_reset_email(user, reset_link):
-    """Send password reset email using Resend API"""
+    """Send password reset email using Brevo API"""
     try:
         import requests as http_requests
         
-        resend_api_key = os.environ.get('RESEND_API_KEY', '')
+        brevo_api_key = os.environ.get('BREVO_API_KEY', '')
         
-        if not resend_api_key:
-            logger.error("❌ RESEND_API_KEY not configured!")
+        if not brevo_api_key:
+            logger.error("❌ BREVO_API_KEY not configured!")
             return False
         
         subject = "Reset your DropVault password"
@@ -278,6 +271,7 @@ def send_password_reset_email(user, reset_link):
             </a>
         </div>
         <p style="color: #999; font-size: 14px;">This link expires in 1 hour.</p>
+        <p style="color: #999; font-size: 14px;">If you didn't request this, ignore this email.</p>
     </div>
 </body>
 </html>
@@ -286,26 +280,26 @@ def send_password_reset_email(user, reset_link):
         plain_message = f"Reset your password: {reset_link}"
         
         response = http_requests.post(
-            'https://api.resend.com/emails',
+            'https://api.brevo.com/v3/smtp/email',
             headers={
-                'Authorization': f'Bearer {resend_api_key}',
+                'api-key': brevo_api_key,
                 'Content-Type': 'application/json'
             },
             json={
-                'from': 'DropVault <onboarding@resend.dev>',
-                'to': [user.email],
+                'sender': {'name': 'DropVault', 'email': 'dropvault.dev@gmail.com'},
+                'to': [{'email': user.email, 'name': user.first_name or user.username}],
                 'subject': subject,
-                'html': html_message,
-                'text': plain_message,
+                'htmlContent': html_message,
+                'textContent': plain_message,
             },
             timeout=30
         )
         
-        if response.status_code in [200, 201]:
+        if response.status_code in [200, 201, 202]:
             logger.info(f"✅ Password reset email sent to {user.email}")
             return True
         else:
-            logger.error(f"❌ Resend error: {response.text}")
+            logger.error(f"❌ Brevo error: {response.text}")
             return False
             
     except Exception as e:
@@ -319,7 +313,7 @@ def send_password_reset_email(user, reset_link):
 
 @csrf_exempt
 def api_test_email(request):
-    """Test email sending with Resend API"""
+    """Test email sending with Brevo API (primary) or Resend (fallback)"""
     if request.method == "OPTIONS":
         return JsonResponse({})
     
@@ -333,76 +327,77 @@ def api_test_email(request):
             'error': 'Please provide email: /api/test-email/?email=your@email.com'
         })
     
-    # Get Resend API key
+    # Get API keys
+    brevo_api_key = os.environ.get('BREVO_API_KEY', '')
     resend_api_key = os.environ.get('RESEND_API_KEY', '')
     
-    # Also show SMTP config for debugging
     config_status = {
+        'BREVO_API_KEY': 'SET' if brevo_api_key else 'NOT SET',
         'RESEND_API_KEY': 'SET' if resend_api_key else 'NOT SET',
-        'EMAIL_HOST': os.environ.get('EMAIL_HOST', 'NOT SET'),
         'EMAIL_HOST_USER': os.environ.get('EMAIL_HOST_USER', '')[:10] + '***' if os.environ.get('EMAIL_HOST_USER') else 'NOT SET',
-        'SMTP_NOTE': 'Render blocks SMTP on port 587 - using Resend API instead'
     }
     
-    if not resend_api_key:
-        return JsonResponse({
-            'success': False,
-            'error': 'RESEND_API_KEY not configured',
-            'config': config_status,
-            'fix': 'Add RESEND_API_KEY to Render environment variables'
-        })
-    
-    try:
-        print(f"📧 Testing email to {test_email} via Resend API...", flush=True)
-        
-        response = http_requests.post(
-            'https://api.resend.com/emails',
-            headers={
-                'Authorization': f'Bearer {resend_api_key}',
-                'Content-Type': 'application/json'
-            },
-            json={
-                'from': 'DropVault <onboarding@resend.dev>',
-                'to': [test_email],
-                'subject': 'DropVault Email Test ✅',
-                'html': f'''
-                    <h1>🎉 Email is Working!</h1>
-                    <p>Congratulations! Your DropVault email system is properly configured.</p>
-                    <p>Sent to: {test_email}</p>
-                    <p>Time: {timezone.now().isoformat()}</p>
-                ''',
-                'text': f'Email is working! Sent to: {test_email}',
-            },
-            timeout=30
-        )
-        
-        print(f"📨 Resend Response: {response.status_code}", flush=True)
-        
-        if response.status_code in [200, 201]:
-            response_data = response.json()
-            return JsonResponse({
-                'success': True,
-                'message': f'Email sent to {test_email}!',
-                'email_id': response_data.get('id'),
-                'config': config_status,
-                'note': 'Check inbox AND spam folder'
-            })
-        else:
+    # Try Brevo first
+    if brevo_api_key:
+        try:
+            print(f"📧 Testing email to {test_email} via Brevo API...", flush=True)
+            
+            response = http_requests.post(
+                'https://api.brevo.com/v3/smtp/email',
+                headers={
+                    'api-key': brevo_api_key,
+                    'Content-Type': 'application/json'
+                },
+                json={
+                    'sender': {'name': 'DropVault', 'email': 'dropvault.dev@gmail.com'},
+                    'to': [{'email': test_email, 'name': 'Test User'}],
+                    'subject': 'DropVault Email Test ✅',
+                    'htmlContent': f'''
+                        <h1>🎉 Email is Working!</h1>
+                        <p>Congratulations! Your DropVault email system is properly configured with Brevo.</p>
+                        <p>Sent to: {test_email}</p>
+                        <p>Time: {timezone.now().isoformat()}</p>
+                    ''',
+                    'textContent': f'Email is working! Sent to: {test_email}',
+                },
+                timeout=30
+            )
+            
+            print(f"📨 Brevo Response: {response.status_code}", flush=True)
+            
+            if response.status_code in [200, 201, 202]:
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Email sent to {test_email} via Brevo!',
+                    'provider': 'brevo',
+                    'config': config_status,
+                    'note': 'Check inbox AND spam folder'
+                })
+            else:
+                print(f"❌ Brevo error: {response.text}", flush=True)
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Brevo API error: {response.text}',
+                    'status_code': response.status_code,
+                    'config': config_status
+                })
+                
+        except Exception as e:
+            print(f"❌ Brevo Error: {e}", flush=True)
             return JsonResponse({
                 'success': False,
-                'error': f'Resend API error: {response.text}',
-                'status_code': response.status_code,
+                'error': str(e),
+                'provider': 'brevo',
                 'config': config_status
             })
-            
-    except Exception as e:
-        print(f"❌ Error: {e}", flush=True)
-        return JsonResponse({
-            'success': False,
-            'error': str(e),
-            'error_type': type(e).__name__,
-            'config': config_status
-        })
+    
+    # Fallback message if no API configured
+    return JsonResponse({
+        'success': False,
+        'error': 'No email API configured',
+        'config': config_status,
+        'fix': 'Add BREVO_API_KEY to Render environment variables'
+    })
 
 
 @csrf_exempt
@@ -411,11 +406,16 @@ def api_debug_email_config(request):
     if request.method == "OPTIONS":
         return JsonResponse({})
     
+    brevo_key = os.environ.get('BREVO_API_KEY', '')
     resend_key = os.environ.get('RESEND_API_KEY', '')
     email_user = os.environ.get('EMAIL_HOST_USER', '')
     email_pass = os.environ.get('EMAIL_HOST_PASSWORD', '')
     
     return JsonResponse({
+        'brevo_api': {
+            'BREVO_API_KEY': 'SET' if brevo_key else 'NOT SET',
+            'key_preview': brevo_key[:15] + '...' if brevo_key else None,
+        },
         'resend_api': {
             'RESEND_API_KEY': 'SET' if resend_key else 'NOT SET',
             'key_preview': resend_key[:15] + '...' if resend_key else None,
@@ -425,13 +425,13 @@ def api_debug_email_config(request):
             'EMAIL_PORT': os.environ.get('EMAIL_PORT', 'NOT SET'),
             'EMAIL_HOST_USER': email_user[:10] + '***' if email_user else 'NOT SET',
             'EMAIL_HOST_PASSWORD': 'SET' if email_pass else 'NOT SET',
-            'EMAIL_USE_TLS': os.environ.get('EMAIL_USE_TLS', 'NOT SET'),
         },
-        'recommendation': 'Use Resend API on Render (SMTP is blocked)',
+        'recommendation': 'Use Brevo API (free 300 emails/day, works on Render)',
         'diagnosis': {
+            'brevo_ready': bool(brevo_key),
             'resend_ready': bool(resend_key),
             'smtp_ready': bool(email_user and email_pass),
-            'preferred_method': 'resend' if resend_key else ('smtp' if email_user else 'none'),
+            'preferred_method': 'brevo' if brevo_key else ('resend' if resend_key else 'none'),
         }
     })
 
